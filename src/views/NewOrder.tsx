@@ -16,16 +16,14 @@ import { cn } from '../lib/utils';
 interface CidEntry { codigo: string; descripcion: string; }
 interface CustomCategory { id: string; title: string; exams: { id: string; name: string }[]; }
 
-// ── Checkbox de examen — fuera del render para evitar re-mounts ───────────
+// ── Componentes auxiliares fuera del render para evitar re-mounts ─────────
 const ExamCheckbox = ({
-  id, label, isCustom = false, checked, onToggle,
-}: { id: string; label: string; isCustom?: boolean; checked: boolean; onToggle: (id: string) => void }) => (
+  id, label, checked, onToggle,
+}: { id: string; label: string; checked: boolean; onToggle: (id: string) => void }) => (
   <label className={cn(
     'flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer text-xs font-medium transition-all select-none',
     checked
-      ? isCustom
-        ? 'bg-[#0F4C81]/8 border-[#0F4C81]/30 text-[#0F4C81]'
-        : 'bg-[#0F4C81]/8 border-[#0F4C81]/30 text-[#0F4C81]'
+      ? 'bg-[#0F4C81]/8 border-[#0F4C81]/30 text-[#0F4C81]'
       : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
   )}>
     <input
@@ -36,6 +34,29 @@ const ExamCheckbox = ({
     />
     <span className="leading-snug">{label}</span>
   </label>
+);
+
+const PanelCard = ({ children, className }: { children: React.ReactNode; className?: string }) => (
+  <div className={cn('bg-white rounded-2xl border border-slate-200/80 shadow-premium overflow-hidden', className)}>
+    {children}
+  </div>
+);
+
+const PanelCardHead = ({
+  icon: Icon, title, iconBg = 'bg-[#0F4C81]/8 border-[#0F4C81]/15', iconCls = 'text-[#0F4C81]', children,
+}: {
+  icon: React.FC<{ size?: number; className?: string; strokeWidth?: number }>;
+  title: string; iconBg?: string; iconCls?: string; children?: React.ReactNode;
+}) => (
+  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
+    <div className="flex items-center gap-3">
+      <div className={cn('p-2 rounded-xl border', iconBg)}>
+        <Icon size={16} className={iconCls} strokeWidth={2} />
+      </div>
+      <h3 className="text-sm font-bold text-slate-900">{title}</h3>
+    </div>
+    {children}
+  </div>
 );
 
 export const NewOrder: React.FC = () => {
@@ -222,27 +243,6 @@ export const NewOrder: React.FC = () => {
 
   const handleCancel = () => { if (isEdit) setActiveOrderForEdit(null); setCurrentView('orders'); };
 
-  // ── Sección reutilizable ─────────────────────────────────────────────────
-  const Card = ({ children, className }: { children: React.ReactNode; className?: string }) => (
-    <div className={cn('bg-white rounded-2xl border border-slate-200/80 shadow-premium overflow-hidden', className)}>
-      {children}
-    </div>
-  );
-  const CardHead = ({ icon: Icon, title, iconBg = 'bg-[#0F4C81]/8 border-[#0F4C81]/15', iconCls = 'text-[#0F4C81]', children }: {
-    icon: React.FC<{ size?: number; className?: string; strokeWidth?: number }>;
-    title: string; iconBg?: string; iconCls?: string; children?: React.ReactNode;
-  }) => (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
-      <div className="flex items-center gap-3">
-        <div className={cn('p-2 rounded-xl border', iconBg)}>
-          <Icon size={16} className={iconCls} strokeWidth={2} />
-        </div>
-        <h3 className="text-sm font-bold text-slate-900">{title}</h3>
-      </div>
-      {children}
-    </div>
-  );
-
   return (
     <div className="space-y-5 animate-fade-in">
 
@@ -267,8 +267,8 @@ export const NewOrder: React.FC = () => {
         <div className="lg:col-span-2 space-y-5">
 
           {/* ── Bloque 1: Datos del paciente ─────────────────────────────── */}
-          <Card>
-            <CardHead icon={User} title={t('new_order_sec_patient')} />
+          <PanelCard>
+            <PanelCardHead icon={User} title={t('new_order_sec_patient')} />
             <div className="p-6 space-y-5">
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -425,11 +425,11 @@ export const NewOrder: React.FC = () => {
                 />
               </div>
             </div>
-          </Card>
+          </PanelCard>
 
           {/* ── Bloque 2: Selección de exámenes ──────────────────────────── */}
-          <Card>
-            <CardHead
+          <PanelCard>
+            <PanelCardHead
               icon={FileCheck2}
               title={t('new_order_sec_exams')}
               iconBg="bg-emerald-50 border-emerald-200"
@@ -444,7 +444,7 @@ export const NewOrder: React.FC = () => {
                   onChange={e => setExamQuery(e.target.value)}
                 />
               </div>
-            </CardHead>
+            </PanelCardHead>
 
             <div className="p-5 space-y-2">
               {/* Resultados de búsqueda */}
@@ -622,15 +622,15 @@ export const NewOrder: React.FC = () => {
                 </button>
               )}
             </div>
-          </Card>
+          </PanelCard>
         </div>
 
         {/* ── Columna derecha — Resumen sticky ─────────────────────────── */}
         <div className="lg:col-span-1 lg:sticky lg:top-20 space-y-4">
 
           {/* Panel resumen */}
-          <Card>
-            <CardHead icon={ClipboardList} title={t('new_order_sec_summary')} />
+          <PanelCard>
+            <PanelCardHead icon={ClipboardList} title={t('new_order_sec_summary')} />
             <div className="p-5 space-y-4">
 
               {/* Paciente */}
@@ -713,7 +713,7 @@ export const NewOrder: React.FC = () => {
                 )}
               </div>
             </div>
-          </Card>
+          </PanelCard>
 
           {/* Botones de acción */}
           <div className="space-y-2">
