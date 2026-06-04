@@ -71,8 +71,24 @@ CREATE TABLE IF NOT EXISTS order_exams (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- --------------------------------------------------------
--- Catálogo inicial de exámenes (seed)
+-- Tabla: login_attempts  (rate limiting)
 -- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS login_attempts (
+  id         INT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  ip         VARCHAR(45)  NOT NULL,
+  attempted_at DATETIME   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_ip_time (ip, attempted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- --------------------------------------------------------
+-- Tabla: order_counter  (IDs secuenciales sin race condition)
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS order_counter (
+  year INT  NOT NULL PRIMARY KEY,
+  seq  INT  NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
 INSERT IGNORE INTO exams (id, category, name) VALUES
   ('eeg-01',     'cat_eeg',     'exam_eeg_01'),
   ('pev-01',     'cat_pev',     'exam_pev_01'),

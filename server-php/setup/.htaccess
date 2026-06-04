@@ -1,0 +1,4 @@
+# Bloquear acceso web directo a los scripts de setup.
+# Solo pueden ejecutarse desde CLI: php setup/seed.php
+Order deny,allow
+Deny from all

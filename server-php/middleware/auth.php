@@ -59,7 +59,15 @@ function getAuthorizationHeader(): string {
 }
 
 function requireAuth(): string {
-    $secret = $_ENV['JWT_SECRET'] ?? 'neuro-secret-key-2026';
+    $secret = $_ENV['JWT_SECRET'] ?? null;
+
+    // Sin JWT_SECRET configurado en .env, rechazar todas las peticiones
+    if (!$secret || strlen($secret) < 32) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Configuración del servidor incorrecta. JWT_SECRET no definido o muy corto.']);
+        exit;
+    }
+
     $header = getAuthorizationHeader();
 
     if (!str_starts_with($header, 'Bearer ')) {

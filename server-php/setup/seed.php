@@ -23,6 +23,21 @@ $PROD_RQE      = '98765';
 
 $pdo = getDB();
 
+// ── Crear tablas auxiliares si no existen ────────────────────────────────
+$pdo->exec("CREATE TABLE IF NOT EXISTS login_attempts (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    ip VARCHAR(45) NOT NULL,
+    attempted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_ip_time (ip, attempted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+echo "✔ Tabla login_attempts verificada.\n";
+
+$pdo->exec("CREATE TABLE IF NOT EXISTS order_counter (
+    year INT NOT NULL PRIMARY KEY,
+    seq  INT NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+echo "✔ Tabla order_counter verificada.\n";
+
 // Remove demo accounts
 $demoEmails = ['doctor@neuro.com', 'demo@neuro.com', 'test@neuro.com'];
 $in         = implode(',', array_fill(0, count($demoEmails), '?'));

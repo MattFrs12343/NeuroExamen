@@ -146,28 +146,39 @@ if ($method === 'POST') {
         exit;
     }
 
-    upsertExams($pdo, $examIds, $customExams ?? []);
+    // Generate order ID inside a transaction to avoid race conditions
+    $pdo->beginTransaction();
+    try {
+        // Lock table counter for atomic increment
+        $pdo->exec("INSERT INTO order_counter (year) VALUES (YEAR(CURDATE()))
+                    ON DUPLICATE KEY UPDATE seq = seq + 1");
+        $row   = $pdo->query("SELECT seq FROM order_counter WHERE year = YEAR(CURDATE())")->fetch();
+        $newId = 'PED-' . date('Y') . '-' . str_pad((int)$row['seq'], 4, '0', STR_PAD_LEFT);
 
-    // Generate order ID: PED-YYYY-NNNN
-    $year  = date('Y');
-    $count = (int)$pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn();
-    $newId = 'PED-' . $year . '-' . str_pad($count + 1, 4, '0', STR_PAD_LEFT);
+        upsertExams($pdo, $examIds, $customExams ?? []);
 
-    $stmt = $pdo->prepare(
-        'INSERT INTO orders (id, patient_id, user_id, date, code_cid, clinic_name, observations, status, exam_descriptions, custom_exams)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    );
-    $stmt->execute([
-        $newId, $patientId, $userId, $date, $codeCID,
-        $clinicName, $observations, $status,
-        $examDescriptions ? json_encode($examDescriptions) : null,
-        $customExams      ? json_encode($customExams)      : null,
-    ]);
+        $stmt = $pdo->prepare(
+            'INSERT INTO orders (id, patient_id, user_id, date, code_cid, clinic_name, observations, status, exam_descriptions, custom_exams)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([
+            $newId, $patientId, $userId, $date, $codeCID,
+            $clinicName, $observations, $status,
+            $examDescriptions ? json_encode($examDescriptions) : null,
+            $customExams      ? json_encode($customExams)      : null,
+        ]);
 
-    // Insert pivot rows
-    $pivot = $pdo->prepare('INSERT INTO order_exams (order_id, exam_id) VALUES (?, ?)');
-    foreach ($examIds as $eid) {
-        $pivot->execute([$newId, $eid]);
+        $pivot = $pdo->prepare('INSERT INTO order_exams (order_id, exam_id) VALUES (?, ?)');
+        foreach ($examIds as $eid) {
+            $pivot->execute([$newId, $eid]);
+        }
+
+        $pdo->commit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        http_response_code(500);
+        echo json_encode(['error' => 'Error al crear pedido: ' . $e->getMessage()]);
+        exit;
     }
 
     // Fetch patient + user for response

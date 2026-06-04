@@ -4,10 +4,24 @@ Options -Indexes
 DirectorySlash Off
 RewriteEngine On
 
-# CRÍTICO: pasar el header Authorization a PHP (XAMPP lo bloquea por defecto)
+# ── HTTPS redirect (activar solo en producción con SSL) ───────────────────
+# Descomentar estas líneas cuando el servidor tenga certificado SSL:
+# RewriteCond %{HTTPS} off
+# RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# ── Security headers ──────────────────────────────────────────────────────
+Header always set X-Content-Type-Options "nosniff"
+Header always set X-Frame-Options "DENY"
+Header always set X-XSS-Protection "1; mode=block"
+Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+# ── Ocultar versión de PHP ─────────────────────────────────────────────────
+Header unset X-Powered-By
+
+# ── CRÍTICO: pasar el header Authorization a PHP (XAMPP lo bloquea por defecto)
 RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
-# Enrutar todas las peticiones a index.php
+# ── Enrutar todas las peticiones a index.php ──────────────────────────────
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.php [QSA,L]
