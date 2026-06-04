@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import type { ViewType } from '../types';
-import { LayoutDashboard, FileText, LogOut, X, Activity } from 'lucide-react';
+import { LayoutDashboard, FileText, LogOut, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import cerebroLogo from '../assets/cerebro.png';
 
@@ -12,7 +12,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
-  const { currentView, setCurrentView, logout, currentUser } = useApp();
+  const { currentView, setCurrentView, logout } = useApp();
   const { t } = useTranslation();
 
   const menuItems = [
@@ -22,9 +22,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
 
   const isActive = (id: ViewType) =>
     currentView === id || (id === 'orders' && currentView === 'new-order');
-
-  const initials = (currentUser?.name ?? '?')
-    .split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
 
   return (
     <>
@@ -98,24 +95,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
           })}
         </nav>
 
-        {/* ── Footer — user & logout ─────────────────────────────────────── */}
-        <div className="px-3 py-4 border-t border-slate-100 space-y-1 shrink-0">
-          {/* User info chip */}
-          <button
-            onClick={() => { setCurrentView('profile'); setIsOpen(false); }}
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-slate-100/80 transition-all group"
-          >
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#0F4C81]/10 text-[#0F4C81] text-xs font-bold shrink-0">
-              {initials}
-            </div>
-            <div className="flex-1 min-w-0 text-left">
-              <p className="text-xs font-semibold text-slate-800 truncate">{currentUser?.name}</p>
-              <p className="text-[10px] text-slate-400 truncate">{currentUser?.email}</p>
-            </div>
-            <Activity size={13} className="text-slate-300 group-hover:text-slate-500 shrink-0 transition-colors" />
-          </button>
-
-          {/* Logout */}
+        {/* ── Footer — logout only ──────────────────────────────────────── */}
+        <div className="px-3 py-4 border-t border-slate-100 shrink-0">
           <button
             onClick={logout}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all duration-150"
