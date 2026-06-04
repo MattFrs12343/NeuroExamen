@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ── Medical Light Theme ───────────────────────────────────────────── */
+    --background:        210 20% 98%;    /* #F7F9FC — azul-gris muy suave */
+    --foreground:        215 28% 17%;    /* #1E2D3D — azul oscuro profundo */
+
+    --card:              0 0% 100%;
+    --card-foreground:   215 28% 17%;
+
+    --popover:           0 0% 100%;
+    --popover-foreground:215 28% 17%;
+
+    /* Primary — azul médico */
+    --primary:           211 52% 57%;   /* #5B8FCC */
+    --primary-foreground:0 0% 100%;
+
+    /* Secondary — verde agua */
+    --secondary:         174 37% 48%;   /* #4DA89A */
+    --secondary-foreground:0 0% 100%;
+
+    --muted:             210 20% 96%;
+    --muted-foreground:  215 16% 47%;   /* #718096 */
+
+    --accent:            210 20% 95%;
+    --accent-foreground: 215 28% 17%;
+
+    --destructive:       0 55% 63%;     /* #D96B6B */
+    --destructive-foreground:0 0% 100%;
+
+    --border:            213 27% 90%;   /* #E4EAF3 */
+    --input:             213 27% 90%;
+    --ring:              211 52% 57%;
+
+    --radius:            0.75rem;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+}
+
+/* ── Custom scrollbars ─────────────────────────────────────────────────────── */
+::-webkit-scrollbar        { width: 5px; height: 5px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: hsl(213 27% 82%); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(213 16% 60%); }
+
+/* ── Print isolation ───────────────────────────────────────────────────────── */
+.print-area { display: none; }
+
+@media print {
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  @page { margin: 0; size: A4; }
+  html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+  #root { display: none !important; }
+  .print-area { display: block !important; position: fixed !important; inset: 0 !important; background: white !important; z-index: 99999 !important; }
+}

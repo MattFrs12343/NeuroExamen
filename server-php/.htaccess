@@ -1,0 +1,12 @@
+# NeuroExamenes — Apache rewrite rules
+
+Options -Indexes
+DirectorySlash Off
+RewriteEngine On
+
+# CRÍTICO: pasar el header Authorization a PHP (XAMPP lo bloquea por defecto)
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+# Enrutar todas las peticiones a index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [QSA,L]
