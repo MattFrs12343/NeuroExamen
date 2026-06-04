@@ -4,38 +4,55 @@
 
 @layer base {
   :root {
-    /* ── Medical Light Theme ───────────────────────────────────────────── */
-    --background:        210 20% 98%;    /* #F7F9FC — azul-gris muy suave */
-    --foreground:        215 28% 17%;    /* #1E2D3D — azul oscuro profundo */
+    /* ══════════════════════════════════════════════════════════════════════
+       NeuroExámenes Premium Design System
+       Medical SaaS — 2026
+    ══════════════════════════════════════════════════════════════════════ */
 
-    --card:              0 0% 100%;
-    --card-foreground:   215 28% 17%;
+    /* ── Background & Surface ──────────────────────────────────────────── */
+    --background:        216 28% 97%;    /* #F8FAFC — white-blue frost */
+    --foreground:        215 25% 10%;    /* #101419 — deep slate */
+
+    --card:              0 0% 100%;      /* Pure white cards */
+    --card-foreground:   215 25% 15%;
 
     --popover:           0 0% 100%;
-    --popover-foreground:215 28% 17%;
+    --popover-foreground:215 25% 15%;
 
-    /* Primary — azul médico */
-    --primary:           211 52% 57%;   /* #5B8FCC */
+    /* ── Primary — Medical Blue (#0F4C81) ─────────────────────────────── */
+    --primary:           209 79% 29%;    /* #0F4C81 */
     --primary-foreground:0 0% 100%;
 
-    /* Secondary — verde agua */
-    --secondary:         174 37% 48%;   /* #4DA89A */
+    /* ── Secondary — Teal Accent (#06B6D4) ───────────────────────────── */
+    --secondary:         189 94% 43%;    /* #06B6D4 */
     --secondary-foreground:0 0% 100%;
 
-    --muted:             210 20% 96%;
-    --muted-foreground:  215 16% 47%;   /* #718096 */
+    /* ── Success (#10B981) ───────────────────────────────────────────── */
+    --success:           160 84% 39%;    /* #10B981 */
+    --success-foreground:0 0% 100%;
 
-    --accent:            210 20% 95%;
-    --accent-foreground: 215 28% 17%;
+    /* ── Warning (#F59E0B) ───────────────────────────────────────────── */
+    --warning:           38 92% 50%;     /* #F59E0B */
+    --warning-foreground:0 0% 100%;
 
-    --destructive:       0 55% 63%;     /* #D96B6B */
+    /* ── Danger (#EF4444) ────────────────────────────────────────────── */
+    --destructive:       0 72% 51%;      /* #EF4444 */
     --destructive-foreground:0 0% 100%;
 
-    --border:            213 27% 90%;   /* #E4EAF3 */
-    --input:             213 27% 90%;
-    --ring:              211 52% 57%;
+    /* ── Neutrals ─────────────────────────────────────────────────────── */
+    --muted:             215 20% 96%;    /* #F1F5F9 */
+    --muted-foreground:  215 16% 47%;    /* #64748B */
 
-    --radius:            0.75rem;
+    --accent:            215 20% 96%;
+    --accent-foreground: 215 25% 15%;
+
+    /* ── Borders & Inputs ─────────────────────────────────────────────── */
+    --border:            215 20% 92%;    /* #E2E8F0 */
+    --input:             215 20% 92%;
+    --ring:              209 79% 29%;    /* Primary focus ring */
+
+    /* ── Radius ───────────────────────────────────────────────────────── */
+    --radius:            0.875rem;       /* 14px — modern soft corners */
   }
 
   * {
@@ -45,20 +62,56 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01', 'ss02';
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    text-rendering: optimizeLegibility;
+  }
+
+  /* ── Typography Scale ───────────────────────────────────────────────── */
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
   }
 }
 
-/* ── Custom scrollbars ─────────────────────────────────────────────────────── */
-::-webkit-scrollbar        { width: 5px; height: 5px; }
-::-webkit-scrollbar-track  { background: transparent; }
-::-webkit-scrollbar-thumb  { background: hsl(213 27% 82%); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: hsl(213 16% 60%); }
+/* ── Custom Premium Scrollbars ─────────────────────────────────────────── */
+::-webkit-scrollbar        { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: hsl(215 20% 98%); }
+::-webkit-scrollbar-thumb  { background: hsl(215 15% 85%); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(215 15% 70%); }
 
-/* ── Print isolation ───────────────────────────────────────────────────────── */
+/* ── Utility Classes ───────────────────────────────────────────────────── */
+@layer components {
+  /* Premium glass effect */
+  .glass {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Premium shadow elevation */
+  .shadow-premium {
+    box-shadow: 
+      0 1px 3px 0 rgb(0 0 0 / 0.05),
+      0 10px 15px -3px rgb(0 0 0 / 0.04),
+      0 4px 6px -2px rgb(0 0 0 / 0.02);
+  }
+
+  /* Smooth focus ring */
+  .focus-ring {
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+
+  /* Interactive states */
+  .interactive {
+    @apply transition-all duration-200 ease-out;
+  }
+}
+
+/* ── Print isolation ───────────────────────────────────────────────────── */
 .print-area { display: none; }
 
 @media print {
@@ -67,4 +120,5 @@
   html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
   #root { display: none !important; }
   .print-area { display: block !important; position: fixed !important; inset: 0 !important; background: white !important; z-index: 99999 !important; }
+  .no-print { display: none !important; }
 }
