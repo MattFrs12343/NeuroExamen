@@ -187,7 +187,7 @@ export const OrdersList: React.FC = () => {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-slate-100">
-                {[t('pat_col_name'), t('date'), t('print_cid'), t('ord_col_exams'), t('status'), t('ord_col_doctor'), ''].map((h, i) => (
+                {[t('pat_col_name'), t('date'), t('print_cid'), t('ord_col_exams'), t('status'), t('ord_col_doctor'), t('actions')].map((h, i) => (
                   <th key={i} className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                     {h}
                   </th>
@@ -265,7 +265,7 @@ export const OrdersList: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-0.5">
                         {/* Ver detalle */}
                         <button
                           title={t('ord_tooltip_view')}
