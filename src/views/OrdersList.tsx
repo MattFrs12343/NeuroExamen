@@ -1,43 +1,45 @@
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
-import { getStatusBadgeVariant } from '../utils/orderUtils';
 import type { Order, OrderStatus } from '../types';
 import {
   PlusCircle, Search, Calendar, Filter, RefreshCw,
-  Eye, Edit3, Printer, Trash2, Download, X,
-  FileCheck, User, Hash, ChevronLeft, ChevronRight,
+  Edit3, Printer, Download, X, FileCheck, User,
+  Hash, ChevronLeft, ChevronRight, CheckCircle2,
+  AlertCircle, XCircle, MoreVertical, Activity,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Badge } from '../components/ui/badge';
 import { Select } from '../components/ui/select';
 import { cn } from '../lib/utils';
 
 const PAGE_SIZE = 15;
 const API = (import.meta.env.VITE_API_URL as string) || 'http://localhost/neuro-api/api';
 
+const statusConfig: Record<OrderStatus, { icon: typeof CheckCircle2; cls: string }> = {
+  Concluido: { icon: CheckCircle2, cls: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
+  Pendiente: { icon: AlertCircle,  cls: 'bg-amber-50 text-amber-600 border-amber-200'     },
+  Cancelado: { icon: XCircle,      cls: 'bg-slate-100 text-slate-500 border-slate-200'    },
+};
+
 export const OrdersList: React.FC = () => {
   const { t } = useTranslation();
   const { orders, exams, setCurrentView, triggerDirectPrint, deleteOrder, setActiveOrderForEdit } = useApp();
 
-  const [filterPatient,   setFilterPatient]   = useState('');
-  const [filterStart,     setFilterStart]     = useState('');
-  const [filterEnd,       setFilterEnd]       = useState('');
-  const [filterStatus,    setFilterStatus]    = useState('Todos');
-  const [appliedPatient,  setAppliedPatient]  = useState('');
-  const [appliedStart,    setAppliedStart]    = useState('');
-  const [appliedEnd,      setAppliedEnd]      = useState('');
-  const [appliedStatus,   setAppliedStatus]   = useState('Todos');
-  const [selectedOrder,   setSelectedOrder]   = useState<Order | null>(null);
-  const [currentPage,     setCurrentPage]     = useState(1);
+  const [filterPatient,  setFilterPatient]  = useState('');
+  const [filterStart,    setFilterStart]    = useState('');
+  const [filterEnd,      setFilterEnd]      = useState('');
+  const [filterStatus,   setFilterStatus]   = useState('Todos');
+  const [appliedPatient, setAppliedPatient] = useState('');
+  const [appliedStart,   setAppliedStart]   = useState('');
+  const [appliedEnd,     setAppliedEnd]     = useState('');
+  const [appliedStatus,  setAppliedStatus]  = useState('Todos');
+  const [selectedOrder,  setSelectedOrder]  = useState<Order | null>(null);
+  const [currentPage,    setCurrentPage]    = useState(1);
 
   const applyFilters = () => {
-    setAppliedPatient(filterPatient);
-    setAppliedStart(filterStart);
-    setAppliedEnd(filterEnd);
-    setAppliedStatus(filterStatus);
+    setAppliedPatient(filterPatient); setAppliedStart(filterStart);
+    setAppliedEnd(filterEnd); setAppliedStatus(filterStatus);
     setCurrentPage(1);
   };
 
@@ -69,8 +71,7 @@ export const OrdersList: React.FC = () => {
     let prev = 0;
     [...set].sort((a, b) => a - b).forEach(p => {
       if (p - prev > 1) pages.push('...');
-      pages.push(p);
-      prev = p;
+      pages.push(p); prev = p;
     });
     return pages;
   }, [totalPages, safePage]);
@@ -86,10 +87,11 @@ export const OrdersList: React.FC = () => {
     try {
       await deleteOrder(id);
       if (selectedOrder?.id === id) setSelectedOrder(null);
-    } catch (e: any) { alert('Error: ' + e.message); }
+    } catch (err: any) { alert('Error: ' + err.message); }
   };
 
-  const handlePdf = async (orderId: string) => {
+  const handlePdf = async (orderId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     const token = localStorage.getItem('neuro_token');
     if (!token) { alert('Sin conexión al servidor.'); return; }
     try {
@@ -100,54 +102,67 @@ export const OrdersList: React.FC = () => {
       const a    = document.createElement('a');
       a.href = url; a.download = `pedido_${orderId}.pdf`; a.click();
       URL.revokeObjectURL(url);
-    } catch (e: any) { alert('Error PDF: ' + e.message); }
+    } catch (err: any) { alert('Error PDF: ' + err.message); }
   };
 
+  const getInitials = (name: string) =>
+    name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-foreground">{t('ord_title')}</h1>
-        <Button onClick={() => { setActiveOrderForEdit(null); setCurrentView('new-order'); }} className="self-start sm:self-auto">
-          <PlusCircle size={15} />
+    <div className="space-y-5 animate-fade-in">
+
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{t('ord_title')}</h1>
+          <p className="text-sm text-slate-500 mt-1">{t('ord_subtitle')}</p>
+        </div>
+        <Button
+          onClick={() => { setActiveOrderForEdit(null); setCurrentView('new-order'); }}
+          className="self-start sm:self-auto bg-[#0F4C81] hover:bg-[#0a3a63] shadow-sm hover:shadow-md transition-all"
+        >
+          <PlusCircle size={16} strokeWidth={2} />
           {t('ord_new_btn')}
         </Button>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <Filter size={15} className="text-primary" />
-            {t('ord_filter_title')}
+      {/* ── Filters ─────────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-premium overflow-hidden">
+        <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100">
+          <div className="p-2.5 rounded-xl bg-[#0F4C81]/8 border border-[#0F4C81]/15">
+            <Filter size={15} className="text-[#0F4C81]" strokeWidth={2} />
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div>
+            <p className="text-sm font-bold text-slate-900">{t('ord_filter_title')}</p>
+            <p className="text-xs text-slate-400 mt-0.5">Filtra por paciente, fecha o estado</p>
+          </div>
+        </div>
+        <div className="p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">{t('print_pat_info')}</p>
+              <label className="block text-xs font-semibold text-slate-600 mb-2">{t('print_pat_info')}</label>
               <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input className="pl-8" placeholder={t('ord_filter_pat_placeholder')} value={filterPatient} onChange={e => setFilterPatient(e.target.value)} />
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" strokeWidth={1.75} />
+                <Input className="pl-10 h-11 border-slate-200 bg-slate-50/50 focus:bg-white" placeholder={t('ord_filter_pat_placeholder')} value={filterPatient} onChange={e => setFilterPatient(e.target.value)} />
               </div>
             </div>
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">{t('ord_filter_start')}</p>
+              <label className="block text-xs font-semibold text-slate-600 mb-2">{t('ord_filter_start')}</label>
               <div className="relative">
-                <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input type="date" className="pl-8" value={filterStart} onChange={e => setFilterStart(e.target.value)} />
+                <Calendar size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" strokeWidth={1.75} />
+                <Input type="date" className="pl-10 h-11 border-slate-200 bg-slate-50/50 focus:bg-white" value={filterStart} onChange={e => setFilterStart(e.target.value)} />
               </div>
             </div>
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">{t('ord_filter_end')}</p>
+              <label className="block text-xs font-semibold text-slate-600 mb-2">{t('ord_filter_end')}</label>
               <div className="relative">
-                <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input type="date" className="pl-8" value={filterEnd} onChange={e => setFilterEnd(e.target.value)} />
+                <Calendar size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" strokeWidth={1.75} />
+                <Input type="date" className="pl-10 h-11 border-slate-200 bg-slate-50/50 focus:bg-white" value={filterEnd} onChange={e => setFilterEnd(e.target.value)} />
               </div>
             </div>
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">{t('status')}</p>
-              <Select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+              <label className="block text-xs font-semibold text-slate-600 mb-2">{t('status')}</label>
+              <Select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="h-11 border-slate-200 bg-slate-50/50">
                 <option value="Todos">{t('ord_filter_all_status')}</option>
                 <option value="Pendiente">{t('status_pending')}</option>
                 <option value="Concluido">{t('status_completed')}</option>
@@ -155,171 +170,247 @@ export const OrdersList: React.FC = () => {
               </Select>
             </div>
           </div>
-          <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-border">
-            <Button variant="ghost" size="sm" onClick={clearFilters}>
-              <RefreshCw size={13} /> {t('ord_filter_clear')}
+          <div className="flex justify-end gap-2 mt-5 pt-5 border-t border-slate-100">
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="hover:bg-slate-100">
+              <RefreshCw size={14} /> {t('ord_filter_clear')}
             </Button>
-            <Button variant="secondary" size="sm" onClick={applyFilters}>
+            <Button size="sm" onClick={applyFilters} className="bg-[#0F4C81] hover:bg-[#0a3a63]">
               {t('ord_filter_btn')}
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Table */}
-      <Card className="overflow-hidden">
+      {/* ── Table ──────────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-premium overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                {['ID', t('pat_col_name'), t('date'), t('print_cid'), t('ord_col_exams'), t('status'), t('ord_col_doctor'), t('actions')].map((h, i) => (
-                  <th key={i} className="px-5 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+              <tr className="border-b border-slate-100">
+                {[t('pat_col_name'), t('date'), t('print_cid'), t('ord_col_exams'), t('status'), t('ord_col_doctor'), ''].map((h, i) => (
+                  <th key={i} className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-50">
               {paged.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-12 text-center text-sm text-slate-400">{t('ord_no_found')}</td>
-                </tr>
-              ) : paged.map(order => (
-                <tr key={order.id} className="hover:bg-sky-50/30 transition-colors group">
-                  <td className="px-5 py-3.5">
-                    <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-md">
-                      {order.id}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <p className="text-sm font-semibold text-slate-800">{order.patientName}</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">ID: {order.patientIdentityCard}</p>
-                  </td>
-                  <td className="px-5 py-3.5 text-sm font-medium text-slate-600 whitespace-nowrap">{order.date}</td>
-                  <td className="px-5 py-3.5">
-                    <span className="font-mono text-xs font-bold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md">
-                      {order.codeCID}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-sm font-medium text-slate-600 whitespace-nowrap">
-                    {order.exams.length} {order.exams.length === 1 ? t('exam_single') : t('exam_plural')}
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <Badge variant={getStatusBadgeVariant(order.status)}>{statusText(order.status)}</Badge>
-                  </td>
-                  <td className="px-5 py-3.5 text-sm text-slate-500">{order.createdBy}</td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
-                      {[
-                        { Icon: Eye,      title: t('ord_tooltip_view'), action: () => setSelectedOrder(order),                                      cls: 'hover:text-sky-600 hover:bg-sky-50' },
-                        { Icon: Edit3,    title: t('edit'),             action: () => { setActiveOrderForEdit(order); setCurrentView('new-order'); }, cls: 'hover:text-slate-700 hover:bg-slate-100' },
-                        { Icon: Printer,  title: t('print'),            action: () => triggerDirectPrint(order),                                     cls: 'hover:text-teal-600 hover:bg-teal-50' },
-                        { Icon: Download, title: 'PDF',                 action: () => handlePdf(order.id),                                           cls: 'hover:text-sky-600 hover:bg-sky-50' },
-                        { Icon: Trash2,   title: t('delete'),           action: () => handleDelete(order.id, order.patientName),                     cls: 'hover:text-red-500 hover:bg-red-50' },
-                      ].map(({ Icon, title, action, cls }) => (
-                        <button key={title} title={title} onClick={action}
-                          className={cn('p-1.5 rounded-lg text-slate-400 transition-all', cls)}>
-                          <Icon size={14} />
-                        </button>
-                      ))}
+                  <td colSpan={7} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
+                        <FileCheck size={24} className="text-slate-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-600">{t('ord_no_found')}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Ajusta los filtros o crea un nuevo pedido</p>
+                      </div>
                     </div>
                   </td>
                 </tr>
-              ))}
+              ) : paged.map(order => {
+                const cfg = statusConfig[order.status];
+                const StatusIcon = cfg.icon;
+                return (
+                  <tr key={order.id}
+                    className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
+                    onClick={() => setSelectedOrder(order)}
+                  >
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-[#0F4C81]/10 text-[#0F4C81] text-xs font-bold flex items-center justify-center shrink-0">
+                          {getInitials(order.patientName)}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">{order.patientName}</p>
+                          <p className="text-xs text-slate-400">DNI: {order.patientIdentityCard}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <Calendar size={13} className="text-slate-300" />
+                        <span className="text-sm font-medium text-slate-600 whitespace-nowrap">{order.date}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {order.codeCID ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#06B6D4]/8 border border-[#06B6D4]/15">
+                          <Hash size={11} className="text-[#06B6D4]" />
+                          <span className="font-mono text-xs font-bold text-[#06B6D4]">{order.codeCID}</span>
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <FileCheck size={13} className="text-slate-300" />
+                        <span className="text-sm font-medium text-slate-600">
+                          {order.exams.length} {order.exams.length === 1 ? t('exam_single') : t('exam_plural')}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className={cn('inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold', cfg.cls)}>
+                        <StatusIcon size={13} />
+                        {statusText(order.status)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <Activity size={13} className="text-slate-300" />
+                        <span className="text-xs text-slate-500 truncate max-w-[120px]">{order.createdBy}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={e => { e.stopPropagation(); setSelectedOrder(order); }}
+                        className="p-2 rounded-xl text-slate-300 opacity-0 group-hover:opacity-100 hover:bg-slate-100 hover:text-slate-600 transition-all"
+                      >
+                        <MoreVertical size={15} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
 
         {/* Pagination */}
-        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50/60 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span className="text-xs text-slate-400">
-            {t('ord_footer_count', {
-              count: filtered.length === 0 ? 0 : `${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, filtered.length)}`,
-              total: filtered.length
-            })}
-          </span>
+        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/60 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span className="text-xs text-slate-500">
+              Mostrando {paged.length === 0 ? 0 : `${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, filtered.length)}`} de {filtered.length}
+            </span>
+          </div>
           {totalPages > 1 && (
             <div className="flex items-center gap-1">
               <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safePage === 1}
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-200 disabled:opacity-30 transition-all">
-                <ChevronLeft size={14} />
+                className="w-9 h-9 flex items-center justify-center rounded-xl border border-transparent text-slate-500 hover:bg-white hover:border-slate-200 disabled:opacity-30 transition-all">
+                <ChevronLeft size={16} />
               </button>
               {pageNumbers.map((p, i) =>
                 p === '...'
-                  ? <span key={`e${i}`} className="w-8 h-8 flex items-center justify-center text-xs text-slate-400">…</span>
+                  ? <span key={`e${i}`} className="w-9 h-9 flex items-center justify-center text-sm text-slate-300">…</span>
                   : <button key={p} onClick={() => setCurrentPage(p as number)}
-                      className={cn('w-8 h-8 flex items-center justify-center rounded-lg text-xs font-semibold transition-all',
+                      className={cn('w-9 h-9 flex items-center justify-center rounded-xl text-sm font-semibold border transition-all',
                         safePage === p
-                          ? 'bg-sky-600 text-white shadow-sm'
-                          : 'text-slate-500 hover:bg-slate-200')}>
+                          ? 'bg-[#0F4C81] text-white border-[#0F4C81] shadow-sm'
+                          : 'text-slate-600 border-transparent hover:bg-white hover:border-slate-200')}>
                       {p}
                     </button>
               )}
               <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-200 disabled:opacity-30 transition-all">
-                <ChevronRight size={14} />
+                className="w-9 h-9 flex items-center justify-center rounded-xl border border-transparent text-slate-500 hover:bg-white hover:border-slate-200 disabled:opacity-30 transition-all">
+                <ChevronRight size={16} />
               </button>
             </div>
           )}
         </div>
-      </Card>
+      </div>
 
-      {/* Detail drawer */}
+      {/* ── Detail Drawer ───────────────────────────────────────────────── */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-black/25 backdrop-blur-sm" onClick={() => setSelectedOrder(null)} />
-          <div className="relative w-full max-w-md bg-white border-l border-slate-200 h-full shadow-2xl flex flex-col animate-slide-in">
+          <div className="absolute inset-0 bg-slate-900/25 backdrop-blur-sm" onClick={() => setSelectedOrder(null)} />
+          <div className="relative w-full max-w-lg bg-white h-full shadow-premium-lg flex flex-col animate-slide-in">
 
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
-              <div>
-                <p className="text-[11px] text-slate-400 uppercase tracking-wide font-semibold">{t('ord_details_title')}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="font-mono text-sm font-bold text-slate-800">{selectedOrder.id}</span>
-                  <Badge variant={getStatusBadgeVariant(selectedOrder.status)}>{statusText(selectedOrder.status)}</Badge>
+            {/* Drawer header */}
+            <div className="px-6 py-5 border-b border-slate-100">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-[#0F4C81]/8 border border-[#0F4C81]/15">
+                    <FileCheck size={18} className="text-[#0F4C81]" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mb-0.5">{t('ord_details_title')}</p>
+                    <p className="text-lg font-bold text-slate-900 tracking-tight">Pedido #{selectedOrder.id}</p>
+                  </div>
                 </div>
+                <button onClick={() => setSelectedOrder(null)}
+                  className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+                  <X size={18} />
+                </button>
               </div>
-              <button onClick={() => setSelectedOrder(null)}
-                className="p-2 rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors">
-                <X size={16} />
-              </button>
+              <div className="mt-4">
+                {(() => {
+                  const cfg = statusConfig[selectedOrder.status];
+                  const SIcon = cfg.icon;
+                  return (
+                    <div className={cn('inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-semibold', cfg.cls)}>
+                      <SIcon size={16} />
+                      {statusText(selectedOrder.status)}
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-5">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-                  <User size={12} /> {t('ord_details_patient')}
-                </p>
-                <p className="text-sm font-bold text-slate-800">{selectedOrder.patientName}</p>
-                <div className="flex gap-4 text-xs text-slate-500">
-                  <span>DNI: <span className="font-semibold text-slate-700">{selectedOrder.patientIdentityCard}</span></span>
-                  <span>{t('date')}: <span className="font-semibold text-slate-700">{selectedOrder.date}</span></span>
+            {/* Drawer content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Patient */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <User size={14} className="text-[#0F4C81]" />
+                  <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('ord_details_patient')}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-[#0F4C81]/10 text-[#0F4C81] flex items-center justify-center text-sm font-bold">
+                    {getInitials(selectedOrder.patientName)}
+                  </div>
+                  <div>
+                    <p className="text-base font-bold text-slate-900">{selectedOrder.patientName}</p>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+                      <span>DNI: <span className="font-semibold text-slate-700">{selectedOrder.patientIdentityCard}</span></span>
+                      <span className="text-slate-300">·</span>
+                      <span>{selectedOrder.date}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-2">
-                  <Hash size={12} className="text-teal-500" /> {t('ord_details_cid')}
-                </p>
-                <span className="font-mono font-bold text-sm text-teal-700 bg-teal-50 border border-teal-200 px-3 py-1 rounded-lg inline-block">
-                  {selectedOrder.codeCID}
-                </span>
-              </div>
+              {/* CID */}
+              {selectedOrder.codeCID && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Hash size={14} className="text-[#06B6D4]" />
+                    <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('ord_details_cid')}</p>
+                  </div>
+                  <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#06B6D4]/8 border border-[#06B6D4]/15">
+                    <span className="font-mono text-base font-bold text-[#06B6D4]">{selectedOrder.codeCID}</span>
+                  </div>
+                </div>
+              )}
 
+              {/* Exams */}
               <div>
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-2">
-                  <FileCheck size={12} className="text-sky-500" /> {t('ord_details_req')} ({selectedOrder.exams.length})
-                </p>
-                <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                  {selectedOrder.exams.map(examId => {
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <FileCheck size={14} className="text-emerald-600" />
+                    <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('ord_details_req')}</p>
+                  </div>
+                  <span className="text-xs font-bold text-slate-400">({selectedOrder.exams.length})</span>
+                </div>
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {selectedOrder.exams.map((examId, idx) => {
                     const exam = exams.find(e => e.id === examId);
                     return (
-                      <div key={examId} className="flex items-center justify-between px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs">
-                        <span className="font-medium text-slate-700">{exam ? t(exam.name) : examId}</span>
-                        {exam?.category && (
-                          <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded font-medium uppercase shrink-0 ml-2">
-                            {t(exam.category)}
-                          </span>
-                        )}
+                      <div key={examId} className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-white">
+                        <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-[11px] font-bold shrink-0">
+                          {idx + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-slate-800 leading-snug">{exam ? t(exam.name) : examId}</p>
+                          {exam?.category && (
+                            <span className="inline-block mt-1.5 text-[10px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase">
+                              {t(exam.category)}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -328,29 +419,35 @@ export const OrdersList: React.FC = () => {
 
               {selectedOrder.observations && (
                 <div>
-                  <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">{t('observations')}</p>
-                  <p className="text-sm text-slate-700 bg-slate-50 rounded-lg p-3 border border-slate-200 leading-relaxed">
-                    {selectedOrder.observations}
-                  </p>
+                  <p className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-3">{t('observations')}</p>
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                    <p className="text-sm text-slate-700 leading-relaxed">{selectedOrder.observations}</p>
+                  </div>
                 </div>
               )}
 
-              <div className="pt-4 border-t border-slate-100 text-xs text-slate-400">
+              <div className="pt-4 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-400">
+                <Activity size={12} />
                 {t('ord_details_creator')}: <span className="font-semibold text-slate-600">{selectedOrder.createdBy}</span>
               </div>
             </div>
 
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex gap-2">
-              <Button variant="secondary" size="sm" className="flex-1"
+            {/* Drawer footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50/60 grid grid-cols-4 gap-2">
+              <Button variant="outline" size="sm"
                 onClick={() => { triggerDirectPrint(selectedOrder); setSelectedOrder(null); }}>
                 <Printer size={14} /> {t('print')}
               </Button>
-              <Button size="sm" className="flex-1" onClick={() => handlePdf(selectedOrder.id)}>
+              <Button variant="outline" size="sm" onClick={e => handlePdf(selectedOrder.id, e)}>
                 <Download size={14} /> PDF
               </Button>
-              <Button variant="outline" size="sm" className="flex-1"
+              <Button size="sm" className="bg-[#0F4C81] hover:bg-[#0a3a63]"
                 onClick={() => { setActiveOrderForEdit(selectedOrder); setCurrentView('new-order'); setSelectedOrder(null); }}>
                 <Edit3 size={14} /> {t('edit')}
+              </Button>
+              <Button variant="outline" size="sm" className="text-red-500 hover:bg-red-50 hover:border-red-200 border-red-200"
+                onClick={() => handleDelete(selectedOrder.id, selectedOrder.patientName)}>
+                {t('delete')}
               </Button>
             </div>
           </div>
