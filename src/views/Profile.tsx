@@ -107,62 +107,57 @@ export const Profile: React.FC = () => {
 
         {/* ── Identity card ─────────────────────────────────────────────── */}
         <div className="lg:col-span-1 bg-white rounded-2xl border border-slate-200/80 shadow-premium overflow-hidden">
-          
-          {/* Card header gradient */}
-          <div className="h-24 bg-gradient-to-br from-[#0F4C81] to-[#0a3a63] relative">
-            <div className="absolute inset-0 opacity-[0.03]"
-              style={{ backgroundImage: 'radial-gradient(white 1px, transparent 1px)', backgroundSize: '16px 16px' }}
-            />
-          </div>
 
-          <div className="px-6 pb-6 -mt-10">
-            {/* Avatar */}
-            <div className="flex items-end justify-between mb-5">
-              <div className="w-20 h-20 rounded-2xl bg-white border-4 border-white shadow-lg flex items-center justify-center text-xl font-bold text-[#0F4C81]">
+          {/* Avatar + nombre — sin franja que tape */}
+          <div className="p-6 flex flex-col items-center text-center gap-4 border-b border-slate-100">
+            <div className="relative">
+              <div className="w-20 h-20 rounded-2xl bg-[#0F4C81]/10 text-[#0F4C81] flex items-center justify-center text-2xl font-bold border-2 border-[#0F4C81]/15">
                 {initials}
               </div>
-              <button className="p-2 rounded-xl border border-slate-200 bg-white text-slate-400 hover:text-slate-700 hover:border-slate-300 transition-all shadow-sm">
-                <Pencil size={14} />
+              <button className="absolute -bottom-2 -right-2 p-1.5 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-slate-700 hover:border-slate-300 shadow-sm transition-all">
+                <Pencil size={12} />
               </button>
             </div>
 
-            <p className="text-base font-bold text-slate-900">{currentUser?.name}</p>
-            <div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
-              <ShieldCheck size={12} className="text-emerald-600" />
-              <span className="text-xs font-semibold text-emerald-700">
-                {currentUser?.specialty ?? t('print_doc_specialty')}
-              </span>
+            <div>
+              <p className="text-base font-bold text-slate-900 leading-tight">{currentUser?.name}</p>
+              <div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
+                <ShieldCheck size={12} className="text-emerald-600" />
+                <span className="text-xs font-semibold text-emerald-700">
+                  {currentUser?.specialty ?? t('print_doc_specialty')}
+                </span>
+              </div>
             </div>
+          </div>
 
-            {/* Info list */}
-            <div className="mt-5 pt-5 border-t border-slate-100 space-y-3.5">
-              {[
-                { icon: Mail,     label: t('login_email'),   value: currentUser?.email },
-                { icon: ShieldCheck, label: t('specialty'),  value: t('prof_license') },
-                { icon: Calendar, label: t('prof_reg_date'), value: regDate },
-              ].map(({ icon: Icon, label, value }) => (
-                <div key={label} className="flex items-start gap-3">
-                  <div className="p-1.5 rounded-lg bg-slate-100 shrink-0 mt-0.5">
-                    <Icon size={13} className="text-slate-500" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</p>
-                    <p className="text-xs font-semibold text-slate-700 truncate mt-0.5">{value}</p>
-                  </div>
+          {/* Info list */}
+          <div className="px-6 py-5 space-y-3.5">
+            {[
+              { icon: Mail,        label: t('login_email'),   value: currentUser?.email },
+              { icon: ShieldCheck, label: t('specialty'),     value: t('prof_license') },
+              { icon: Calendar,    label: t('prof_reg_date'), value: regDate },
+            ].map(({ icon: Icon, label, value }) => (
+              <div key={label} className="flex items-start gap-3">
+                <div className="p-1.5 rounded-lg bg-slate-100 shrink-0 mt-0.5">
+                  <Icon size={13} className="text-slate-500" />
                 </div>
-              ))}
-            </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</p>
+                  <p className="text-xs font-semibold text-slate-700 truncate mt-0.5">{value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
 
-            {/* Logout */}
-            <div className="mt-5 pt-5 border-t border-slate-100">
-              <button
-                onClick={logout}
-                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 border border-transparent hover:border-red-200 transition-all"
-              >
-                <LogOut size={16} />
-                {t('logout')}
-              </button>
-            </div>
+          {/* Logout */}
+          <div className="px-6 pb-6 pt-2 border-t border-slate-100">
+            <button
+              onClick={logout}
+              className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 border border-transparent hover:border-red-200 transition-all"
+            >
+              <LogOut size={16} />
+              {t('logout')}
+            </button>
           </div>
         </div>
 
