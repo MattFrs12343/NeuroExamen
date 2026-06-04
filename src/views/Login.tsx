@@ -134,9 +134,6 @@ export const Login: React.FC = () => {
                 <label htmlFor="password" className="text-sm font-semibold text-slate-700">
                   {t('login_password')}
                 </label>
-                <button type="button" className="text-xs font-medium text-[#4A90E2] hover:text-[#0F4C81] transition-colors">
-                  ¿Olvidó su contraseña?
-                </button>
               </div>
               <div className="relative">
                 <Lock size={18} strokeWidth={1.75} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
