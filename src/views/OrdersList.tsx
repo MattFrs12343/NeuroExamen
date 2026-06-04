@@ -6,7 +6,7 @@ import {
   PlusCircle, Search, Calendar, Filter, RefreshCw,
   Edit3, Printer, Download, X, FileCheck, User,
   Hash, ChevronLeft, ChevronRight, CheckCircle2,
-  AlertCircle, XCircle, MoreVertical, Activity,
+  AlertCircle, XCircle, Activity, Eye, Trash2,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -265,12 +265,48 @@ export const OrdersList: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <button
-                        onClick={e => { e.stopPropagation(); setSelectedOrder(order); }}
-                        className="p-2 rounded-xl text-slate-300 opacity-0 group-hover:opacity-100 hover:bg-slate-100 hover:text-slate-600 transition-all"
-                      >
-                        <MoreVertical size={15} />
-                      </button>
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {/* Ver detalle */}
+                        <button
+                          title={t('ord_tooltip_view')}
+                          onClick={e => { e.stopPropagation(); setSelectedOrder(order); }}
+                          className="p-2 rounded-lg text-slate-400 hover:text-[#0F4C81] hover:bg-[#0F4C81]/8 transition-all"
+                        >
+                          <Eye size={15} />
+                        </button>
+                        {/* Editar */}
+                        <button
+                          title={t('edit')}
+                          onClick={e => { e.stopPropagation(); setActiveOrderForEdit(order); setCurrentView('new-order'); }}
+                          className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+                        >
+                          <Edit3 size={15} />
+                        </button>
+                        {/* Imprimir */}
+                        <button
+                          title={t('print')}
+                          onClick={e => { e.stopPropagation(); triggerDirectPrint(order); }}
+                          className="p-2 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all"
+                        >
+                          <Printer size={15} />
+                        </button>
+                        {/* Descargar PDF */}
+                        <button
+                          title="PDF"
+                          onClick={e => { e.stopPropagation(); handlePdf(order.id, e); }}
+                          className="p-2 rounded-lg text-slate-400 hover:text-[#06B6D4] hover:bg-[#06B6D4]/8 transition-all"
+                        >
+                          <Download size={15} />
+                        </button>
+                        {/* Eliminar */}
+                        <button
+                          title={t('delete')}
+                          onClick={e => { e.stopPropagation(); handleDelete(order.id, order.patientName); }}
+                          className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
