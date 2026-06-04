@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useApp } from '../context/AppContext';
-import { Mail, Lock, Eye, EyeOff, AlertCircle, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import cerebroLogo from '../assets/cerebro.png';
 
@@ -256,20 +256,8 @@ export const Login: React.FC = () => {
           </form>
         </div>
 
-        {/* Security footer */}
-        <div className="flex items-center justify-center gap-5 mt-6">
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
-            <ShieldCheck size={13} className="text-slate-400" strokeWidth={2} />
-            SSL / TLS
-          </div>
-          <div className="w-px h-3.5 bg-slate-300" />
-          <span className="text-xs text-slate-400 font-medium">ISO 27001</span>
-          <div className="w-px h-3.5 bg-slate-300" />
-          <span className="text-xs text-slate-400 font-medium">LGPD / HIPAA</span>
-        </div>
-
         {/* Copyright */}
-        <p className="text-center text-[11px] text-slate-400 mt-4">
+        <p className="text-center text-[11px] text-slate-400 mt-6">
           © {new Date().getFullYear()} NeuroExámenes · Todos los derechos reservados
         </p>
       </div>
