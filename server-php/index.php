@@ -47,7 +47,7 @@ if ($uri === '/orders' || preg_match('#^/orders/[^/]+$#', $uri)) {
 }
 
 // ── Setup / Utilities (solo GET, requiere ?confirm=RESET) ────────────────────
-if ($uri === '/setup/reset') {
+if ($uri === '/admin/reset') {
     require __DIR__ . '/setup/reset_data.php'; exit;
 }
 
