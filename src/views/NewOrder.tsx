@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import type { Exam, OrderStatus } from '../types';
 import {
-  User, Search, Calendar, FileText, Hash, Check,
-  ChevronDown, ChevronUp, Info, ArrowLeft, X,
-  FileCheck2, Printer, Building2, PlusCircle, Trash2, MessageSquare,
+  User, Search, Calendar, Hash, Check,
+  ChevronDown, ChevronUp, ArrowLeft, X,
+  FileCheck2, Building2, PlusCircle, Trash2,
+  MessageSquare, ClipboardList, CheckCircle2,
 } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -15,52 +16,26 @@ import { cn } from '../lib/utils';
 interface CidEntry { codigo: string; descripcion: string; }
 interface CustomCategory { id: string; title: string; exams: { id: string; name: string }[]; }
 
-// ── Componentes auxiliares fuera del render ───────────────────────────────
-const ExamCheckbox = ({ id, label, isCustom = false, checked, onToggle }: { 
-  id: string; 
-  label: string; 
-  isCustom?: boolean;
-  checked: boolean;
-  onToggle: (id: string) => void;
-}) => {
-  return (
-    <label className={cn(
-      'flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer text-xs font-medium transition-all select-none',
-      checked
-        ? isCustom
-          ? 'bg-violet-50 border-violet-300 text-violet-800'
-          : 'bg-teal-50 border-teal-300 text-teal-800'
-        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
-    )}>
-      <input
-        type="checkbox" 
-        checked={checked} 
-        onChange={() => onToggle(id)}
-        className={cn('mt-0.5 w-3.5 h-3.5 rounded cursor-pointer',
-          isCustom ? 'accent-violet-600' : 'accent-teal-600')}
-      />
-      <span className="leading-snug">{label}</span>
-    </label>
-  );
-};
-
-const Section = ({ children, className }: { children: React.ReactNode; className?: string }) => (
-  <div className={cn('bg-white border border-slate-200 rounded-xl shadow-sm', className)}>
-    {children}
-  </div>
-);
-
-const SectionHeader = ({ icon: Icon, title, iconCls = 'text-sky-600', children }: {
-  icon: React.FC<{ size?: number; className?: string; strokeWidth?: number }>;
-  title: string; iconCls?: string; children?: React.ReactNode;
-}) => (
-  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-slate-200">
-    <div className="flex items-center gap-2">
-      <Icon size={16} className={iconCls} strokeWidth={2} />
-      <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">{title}</h3>
-    </div>
-    {children}
-  </div>
+// ── Checkbox de examen — fuera del render para evitar re-mounts ───────────
+const ExamCheckbox = ({
+  id, label, isCustom = false, checked, onToggle,
+}: { id: string; label: string; isCustom?: boolean; checked: boolean; onToggle: (id: string) => void }) => (
+  <label className={cn(
+    'flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer text-xs font-medium transition-all select-none',
+    checked
+      ? isCustom
+        ? 'bg-[#0F4C81]/8 border-[#0F4C81]/30 text-[#0F4C81]'
+        : 'bg-[#0F4C81]/8 border-[#0F4C81]/30 text-[#0F4C81]'
+      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+  )}>
+    <input
+      type="checkbox"
+      checked={checked}
+      onChange={() => onToggle(id)}
+      className="mt-0.5 w-3.5 h-3.5 rounded cursor-pointer accent-[#0F4C81]"
+    />
+    <span className="leading-snug">{label}</span>
+  </label>
 );
 
 export const NewOrder: React.FC = () => {
@@ -73,7 +48,6 @@ export const NewOrder: React.FC = () => {
 
   const isEdit = !!activeOrderForEdit;
 
-  // ── Form state ───────────────────────────────────────────────────────────
   const [patientId,        setPatientId]        = useState('');
   const [orderDate,        setOrderDate]        = useState('');
   const [codeCID,          setCodeCID]          = useState('');
@@ -82,18 +56,16 @@ export const NewOrder: React.FC = () => {
   const [selectedExams,    setSelectedExams]    = useState<string[]>([]);
   const [examDescriptions, setExamDescriptions] = useState<Record<string, string>>({});
   const [orderStatus,      setOrderStatus]      = useState<OrderStatus>('Concluido');
+  const [patQuery,         setPatQuery]         = useState('');
+  const [showPatDrop,      setShowPatDrop]      = useState(false);
+  const [examQuery,        setExamQuery]        = useState('');
+  const [expanded,         setExpanded]         = useState<Record<string, boolean>>({ cat_eeg: true });
+  const [customCats,       setCustomCats]       = useState<CustomCategory[]>([]);
+  const [newCatTitle,      setNewCatTitle]      = useState('');
+  const [addingCat,        setAddingCat]        = useState(false);
+  const [newExamNames,     setNewExamNames]     = useState<Record<string, string>>({});
 
-  const [patQuery,    setPatQuery]    = useState('');
-  const [showPatDrop, setShowPatDrop] = useState(false);
-  const [examQuery,   setExamQuery]   = useState('');
-  const [expanded,    setExpanded]    = useState<Record<string, boolean>>({ cat_eeg: true });
-
-  const [customCats,   setCustomCats]   = useState<CustomCategory[]>([]);
-  const [newCatTitle,  setNewCatTitle]  = useState('');
-  const [addingCat,    setAddingCat]    = useState(false);
-  const [newExamNames, setNewExamNames] = useState<Record<string, string>>({});
-
-  // ── CID-10 ───────────────────────────────────────────────────────────────
+  // CID-10
   const [cidList,     setCidList]     = useState<CidEntry[]>([]);
   const [cidQuery,    setCidQuery]    = useState('');
   const [showCidDrop, setShowCidDrop] = useState(false);
@@ -106,8 +78,6 @@ export const NewOrder: React.FC = () => {
     fetch('/cid10.json').then(r => r.json()).then(d => setCidList(d)).catch(() => {});
   };
 
-  // Debounce: actualiza la query de búsqueda 300ms después de que el usuario
-  // deje de escribir — NO toca codeCID, así el input nunca se interrumpe
   useEffect(() => {
     const timer = setTimeout(() => {
       setCidQuery(codeCID);
@@ -119,12 +89,9 @@ export const NewOrder: React.FC = () => {
   const cidSuggestions = useMemo(() => {
     const q = cidQuery.trim().toUpperCase();
     if (q.length < 2 || !cidList.length) return [];
-    return cidList.filter(e =>
-      e.codigo.startsWith(q) || e.descripcion.toUpperCase().includes(q)
-    ).slice(0, 40);
+    return cidList.filter(e => e.codigo.startsWith(q) || e.descripcion.toUpperCase().includes(q)).slice(0, 40);
   }, [cidQuery, cidList]);
 
-  // Cerrar dropdown al hacer clic fuera
   useEffect(() => {
     const fn = (e: MouseEvent) => {
       if (cidRef.current && !cidRef.current.contains(e.target as Node)) setShowCidDrop(false);
@@ -133,7 +100,7 @@ export const NewOrder: React.FC = () => {
     return () => document.removeEventListener('mousedown', fn);
   }, []);
 
-  // ── Edit prefill ──────────────────────────────────────────────────────────
+  // Prefill en modo edición
   useEffect(() => {
     if (activeOrderForEdit) {
       setPatientId(activeOrderForEdit.patientId);
@@ -146,7 +113,6 @@ export const NewOrder: React.FC = () => {
       setSelectedExams(activeOrderForEdit.exams);
       setExamDescriptions(activeOrderForEdit.examDescriptions || {});
       setOrderStatus(activeOrderForEdit.status);
-
       const loaded = activeOrderForEdit.customExams || {};
       const map: Record<string, CustomCategory> = {};
       Object.keys(loaded).forEach(eid => {
@@ -163,7 +129,6 @@ export const NewOrder: React.FC = () => {
     }
   }, [activeOrderForEdit, patients]);
 
-  // ── Derived state ─────────────────────────────────────────────────────────
   const examsByCategory = useMemo(() => {
     const g: Record<string, Exam[]> = {};
     exams.forEach(e => { if (!g[e.category]) g[e.category] = []; g[e.category].push(e); });
@@ -182,10 +147,9 @@ export const NewOrder: React.FC = () => {
     return exams.filter(e => t(e.name).toLowerCase().includes(q) || t(e.category).toLowerCase().includes(q));
   }, [exams, examQuery, t]);
 
-  const selectedPatient = patients.find(p => p.id === patientId);
-
-  const toggleExam = (id: string) => setSelectedExams(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
-  const toggleCat  = (id: string) => setExpanded(p => ({ ...p, [id]: !p[id] }));
+  const selectedPatient  = patients.find(p => p.id === patientId);
+  const toggleExam       = (id: string) => setSelectedExams(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  const toggleCat        = (id: string) => setExpanded(p => ({ ...p, [id]: !p[id] }));
 
   const addCategory = () => {
     const title = newCatTitle.trim(); if (!title) return;
@@ -210,7 +174,6 @@ export const NewOrder: React.FC = () => {
     setSelectedExams(p => p.filter(x => x !== eid));
   };
 
-  // ── Save ──────────────────────────────────────────────────────────────────
   const handleSave = async (print: boolean) => {
     if (!patQuery.trim())      { alert(t('new_order_validation_pat'));   return; }
     if (!orderDate)            { alert(t('new_order_validation_date'));  return; }
@@ -259,38 +222,63 @@ export const NewOrder: React.FC = () => {
 
   const handleCancel = () => { if (isEdit) setActiveOrderForEdit(null); setCurrentView('orders'); };
 
-  return (
-    <div className="space-y-5">
-
-      {/* Page header */}
+  // ── Sección reutilizable ─────────────────────────────────────────────────
+  const Card = ({ children, className }: { children: React.ReactNode; className?: string }) => (
+    <div className={cn('bg-white rounded-2xl border border-slate-200/80 shadow-premium overflow-hidden', className)}>
+      {children}
+    </div>
+  );
+  const CardHead = ({ icon: Icon, title, iconBg = 'bg-[#0F4C81]/8 border-[#0F4C81]/15', iconCls = 'text-[#0F4C81]', children }: {
+    icon: React.FC<{ size?: number; className?: string; strokeWidth?: number }>;
+    title: string; iconBg?: string; iconCls?: string; children?: React.ReactNode;
+  }) => (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
       <div className="flex items-center gap-3">
-        <button onClick={handleCancel}
-          className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-800 hover:border-slate-300 transition-all">
-          <ArrowLeft size={15} />
+        <div className={cn('p-2 rounded-xl border', iconBg)}>
+          <Icon size={16} className={iconCls} strokeWidth={2} />
+        </div>
+        <h3 className="text-sm font-bold text-slate-900">{title}</h3>
+      </div>
+      {children}
+    </div>
+  );
+
+  return (
+    <div className="space-y-5 animate-fade-in">
+
+      {/* ── Header ──────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleCancel}
+          className="p-2 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 transition-all"
+        >
+          <ArrowLeft size={16} />
         </button>
-        <h1 className="text-xl font-bold text-slate-900">
-          {isEdit ? t('new_order_edit_title') : t('new_order_title')}
-        </h1>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+            {isEdit ? t('new_order_edit_title') : t('new_order_title')}
+          </h1>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
 
-        {/* ── Left column (2/3) ──────────────────────────────────────────── */}
+        {/* ── Columna izquierda (2/3) ──────────────────────────────────── */}
         <div className="lg:col-span-2 space-y-5">
 
-          {/* Block 1: Patient */}
-          <Section>
-            <SectionHeader icon={User} title={t('new_order_sec_patient')} />
-            <div className="p-6 space-y-4">
+          {/* ── Bloque 1: Datos del paciente ─────────────────────────────── */}
+          <Card>
+            <CardHead icon={User} title={t('new_order_sec_patient')} />
+            <div className="p-6 space-y-5">
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {/* Patient search */}
+                {/* Búsqueda paciente */}
                 <div className="sm:col-span-2 relative">
-                  <Label>{t('pat_col_name')} *</Label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-2">{t('pat_col_name')} *</label>
                   <div className="relative">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <Search size={16} strokeWidth={1.75} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                     <Input
-                      className="pl-8 pr-7 border-slate-200 bg-slate-50 focus:bg-white"
+                      className="pl-10 pr-8 h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50"
                       placeholder={t('new_order_pat_search')}
                       value={patQuery}
                       onChange={e => { setPatQuery(e.target.value); setPatientId(''); setShowPatDrop(true); }}
@@ -299,63 +287,66 @@ export const NewOrder: React.FC = () => {
                       autoComplete="off"
                     />
                     {patQuery && (
-                      <button
-                        type="button"
+                      <button type="button"
                         onMouseDown={e => { e.preventDefault(); setPatQuery(''); setPatientId(''); setShowPatDrop(false); }}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      >
-                        <X size={13} />
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                        <X size={14} />
                       </button>
                     )}
                   </div>
 
-                  {/* Dropdown */}
                   {showPatDrop && patQuery.trim() && filteredPatients.length > 0 && (
-                    <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
-                      <p className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wide bg-slate-50 border-b border-slate-200">
+                    <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-premium-lg z-50 overflow-hidden">
+                      <p className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50 border-b border-slate-100">
                         {t('new_order_smart_search_title')}
                       </p>
                       {filteredPatients.map(p => (
                         <button key={p.id} type="button"
                           onMouseDown={e => { e.preventDefault(); setPatientId(p.id); setPatQuery(p.name); setShowPatDrop(false); }}
-                          className="flex flex-col text-left w-full px-3 py-2.5 hover:bg-sky-50 transition-colors border-b border-slate-100 last:border-0">
-                          <span className="text-sm font-semibold text-slate-800">{p.name}</span>
-                          <span className="text-[11px] text-slate-400">
-                            {p.identityCard !== 'N/A' ? `DNI: ${p.identityCard}` : ''}
-                            {p.age ? ` · ${p.age} ${t('years')}` : ''}
-                          </span>
+                          className="flex items-center gap-3 text-left w-full px-4 py-3 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0">
+                          <div className="w-8 h-8 rounded-lg bg-[#0F4C81]/10 text-[#0F4C81] flex items-center justify-center text-xs font-bold shrink-0">
+                            {p.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">{p.name}</p>
+                            <p className="text-xs text-slate-400">
+                              {p.identityCard !== 'N/A' ? `DNI: ${p.identityCard}` : ''}
+                              {p.age ? ` · ${p.age} ${t('years')}` : ''}
+                            </p>
+                          </div>
                         </button>
                       ))}
                     </div>
                   )}
 
                   {patientId && selectedPatient && (
-                    <div className="mt-1.5 inline-flex items-center gap-1.5 text-xs text-teal-700 font-semibold bg-teal-50 border border-teal-200 px-2.5 py-1 rounded-md">
-                      <Check size={12} strokeWidth={3} />
-                      {t('pat_select_feedback', { name: selectedPatient.name, dni: selectedPatient.identityCard })}
+                    <div className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
+                      <CheckCircle2 size={13} strokeWidth={2.5} />
+                      {selectedPatient.name} — DNI: {selectedPatient.identityCard}
                     </div>
                   )}
                 </div>
 
-                {/* Date */}
+                {/* Fecha */}
                 <div>
-                  <Label>{t('new_order_date_label')} *</Label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-2">{t('new_order_date_label')} *</label>
                   <div className="relative">
-                    <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                    <Input type="date" className="pl-8 border-slate-200 bg-slate-50 focus:bg-white"
+                    <Calendar size={16} strokeWidth={1.75} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <Input type="date"
+                      className="pl-10 h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50"
                       value={orderDate} onChange={e => setOrderDate(e.target.value)} />
                   </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Status */}
+                {/* Estado */}
                 <div>
-                  <Label>{t('status')} *</Label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-2">{t('status')} *</label>
                   <select
                     value={orderStatus}
                     onChange={e => setOrderStatus(e.target.value as OrderStatus)}
-                    className="flex h-9 w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-300 focus:bg-white cursor-pointer transition-colors"
+                    className="flex h-11 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50/50 px-4 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0F4C81]/20 focus:border-[#0F4C81]/50 focus:bg-white cursor-pointer transition-all"
                   >
                     <option value="Concluido">{t('status_completed')}</option>
                     <option value="Pendiente">{t('status_pending')}</option>
@@ -365,11 +356,11 @@ export const NewOrder: React.FC = () => {
 
                 {/* CID-10 */}
                 <div>
-                  <Label>{t('new_order_cid')}</Label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-2">{t('new_order_cid')}</label>
                   <div className="relative" ref={cidRef}>
-                    <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10 pointer-events-none" />
+                    <Hash size={16} strokeWidth={1.75} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 z-10 pointer-events-none" />
                     <Input
-                      className="pl-8 pr-7 font-mono uppercase border-slate-200 bg-slate-50 focus:bg-white"
+                      className="pl-10 pr-8 h-11 font-mono uppercase border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50"
                       placeholder="Ej: G40.9"
                       value={codeCID}
                       onChange={e => { setCodeCID(e.target.value); loadCid(); }}
@@ -377,24 +368,26 @@ export const NewOrder: React.FC = () => {
                       autoComplete="off"
                     />
                     {codeCID && (
-                      <button type="button" onClick={() => { setCodeCID(''); setCidQuery(''); setShowCidDrop(false); }}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                        <X size={13} />
+                      <button type="button"
+                        onClick={() => { setCodeCID(''); setCidQuery(''); setShowCidDrop(false); }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                        <X size={14} />
                       </button>
                     )}
                     {showCidDrop && cidSuggestions.length > 0 && (
-                      <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
-                        <div className="flex items-center justify-between px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase border-b border-slate-200 bg-slate-50">
+                      <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-premium-lg z-50 overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 bg-slate-50">
                           <span>CID-10 — {cidSuggestions.length} resultado{cidSuggestions.length !== 1 ? 's' : ''}</span>
                           <button type="button" onClick={() => setShowCidDrop(false)} className="hover:text-slate-600"><X size={11} /></button>
                         </div>
                         <ul className="max-h-52 overflow-y-auto py-1">
                           {cidSuggestions.map(e => (
                             <li key={e.codigo}>
-                              <button type="button" onMouseDown={() => { setCodeCID(e.codigo); setCidQuery(''); setShowCidDrop(false); }}
-                                className="w-full flex items-start gap-3 px-3 py-2 hover:bg-sky-50 transition-colors text-left">
-                                <span className="font-mono font-bold text-xs text-sky-700 shrink-0 w-12">{e.codigo}</span>
-                                <span className="text-xs text-slate-700 leading-snug">{e.descripcion}</span>
+                              <button type="button"
+                                onMouseDown={() => { setCodeCID(e.codigo); setCidQuery(''); setShowCidDrop(false); }}
+                                className="w-full flex items-start gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors text-left">
+                                <span className="font-mono font-bold text-xs text-[#0F4C81] shrink-0 w-14">{e.codigo}</span>
+                                <span className="text-xs text-slate-600 leading-snug">{e.descripcion}</span>
                               </button>
                             </li>
                           ))}
@@ -405,60 +398,73 @@ export const NewOrder: React.FC = () => {
                 </div>
               </div>
 
-              {/* Clinic */}
+              {/* Clínica */}
               <div>
-                <Label>Clínica / Institución ({t('optional')})</Label>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  Clínica / Institución <span className="text-slate-400 font-normal">({t('optional')})</span>
+                </label>
                 <div className="relative">
-                  <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                  <Input className="pl-8 border-slate-200 bg-slate-50 focus:bg-white"
+                  <Building2 size={16} strokeWidth={1.75} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <Input className="pl-10 h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50"
                     placeholder="Ej: Clínica Neurológica del Sur"
                     value={clinicName} onChange={e => setClinicName(e.target.value)} />
                 </div>
               </div>
 
-              {/* Observations */}
+              {/* Observaciones */}
               <div>
-                <Label>{t('observations')} ({t('optional')})</Label>
-                <Input className="border-slate-200 bg-slate-50 focus:bg-white"
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  {t('observations')} <span className="text-slate-400 font-normal">({t('optional')})</span>
+                </label>
+                <Textarea
+                  rows={2}
+                  className="border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50 resize-none"
                   placeholder={t('new_order_obs_placeholder')}
-                  value={observations} onChange={e => setObservations(e.target.value)} />
+                  value={observations}
+                  onChange={e => setObservations(e.target.value)}
+                />
               </div>
             </div>
-          </Section>
+          </Card>
 
-          {/* Block 2: Exams */}
-          <Section>
-            <SectionHeader icon={FileCheck2} title={t('new_order_sec_exams')} iconCls="text-teal-600">
-              <div className="relative w-full sm:w-56">
-                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <Input className="pl-8 h-8 text-xs border-slate-200 bg-slate-50 focus:bg-white"
+          {/* ── Bloque 2: Selección de exámenes ──────────────────────────── */}
+          <Card>
+            <CardHead
+              icon={FileCheck2}
+              title={t('new_order_sec_exams')}
+              iconBg="bg-emerald-50 border-emerald-200"
+              iconCls="text-emerald-600"
+            >
+              <div className="relative w-full sm:w-60">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <Input
+                  className="pl-9 h-9 text-sm border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50"
                   placeholder={t('new_order_exam_search')}
-                  value={examQuery} onChange={e => setExamQuery(e.target.value)} />
+                  value={examQuery}
+                  onChange={e => setExamQuery(e.target.value)}
+                />
               </div>
-            </SectionHeader>
-            <div className="p-5 space-y-2">
+            </CardHead>
 
-              {/* Search results */}
+            <div className="p-5 space-y-2">
+              {/* Resultados de búsqueda */}
               {examQuery.trim() && (
-                <div className="p-4 bg-teal-50 border border-teal-200 rounded-xl space-y-3 animate-fade-in">
-                  <div className="flex items-center justify-between text-xs font-semibold text-teal-700">
-                    <span>{t('new_order_search_results')} ({searchedExams.length})</span>
-                    <button onClick={() => setExamQuery('')} className="text-slate-400 hover:text-slate-600 text-[11px]">
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700">
+                      {t('new_order_search_results')} ({searchedExams.length})
+                    </span>
+                    <button onClick={() => setExamQuery('')} className="text-xs text-slate-400 hover:text-slate-600">
                       {t('new_order_close_search')}
                     </button>
                   </div>
                   {!searchedExams.length
-                    ? <p className="text-xs text-slate-400 text-center py-2">{t('new_order_no_exam_match', { query: examQuery })}</p>
+                    ? <p className="text-xs text-slate-400 text-center py-3">{t('new_order_no_exam_match', { query: examQuery })}</p>
                     : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto">
                         {searchedExams.map(e => (
-                          <ExamCheckbox 
-                            key={e.id} 
-                            id={e.id} 
-                            label={t(e.name)} 
-                            checked={selectedExams.includes(e.id)}
-                            onToggle={toggleExam}
-                          />
+                          <ExamCheckbox key={e.id} id={e.id} label={t(e.name)}
+                            checked={selectedExams.includes(e.id)} onToggle={toggleExam} />
                         ))}
                       </div>
                     )
@@ -466,7 +472,7 @@ export const NewOrder: React.FC = () => {
                 </div>
               )}
 
-              {/* Category accordion */}
+              {/* Categorías acordeón */}
               {Object.keys(examsByCategory).map(cat => {
                 const catExams = examsByCategory[cat];
                 const sel      = catExams.filter(e => selectedExams.includes(e.id)).length;
@@ -474,37 +480,32 @@ export const NewOrder: React.FC = () => {
                 return (
                   <div key={cat} className={cn(
                     'border rounded-xl overflow-hidden transition-all',
-                    isOpen ? 'border-slate-300 bg-white shadow-sm' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                    isOpen ? 'border-slate-300 shadow-sm' : 'border-slate-200 bg-slate-50/50 hover:bg-slate-50'
                   )}>
                     <button type="button" onClick={() => toggleCat(cat)}
-                      className="w-full flex items-center justify-between px-4 py-3 text-left focus:outline-none">
+                      className="w-full flex items-center justify-between px-4 py-3 text-left">
                       <div className="flex items-center gap-2.5">
                         <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">{t(cat)}</span>
                         {sel > 0 && (
-                          <span className="px-2 py-0.5 text-[10px] font-bold bg-teal-600 text-white rounded-full">{sel}</span>
+                          <span className="px-2 py-0.5 text-[10px] font-bold bg-[#0F4C81] text-white rounded-full">{sel}</span>
                         )}
                       </div>
                       {isOpen ? <ChevronUp size={15} className="text-slate-400" /> : <ChevronDown size={15} className="text-slate-400" />}
                     </button>
                     {isOpen && (
-                      <div className="px-4 pb-4 pt-2 border-t border-slate-200 space-y-3 animate-fade-in">
+                      <div className="px-4 pb-4 pt-2 border-t border-slate-100 space-y-3 animate-fade-in">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {catExams.map(e => (
-                            <ExamCheckbox 
-                              key={e.id} 
-                              id={e.id} 
-                              label={t(e.name)} 
-                              checked={selectedExams.includes(e.id)}
-                              onToggle={toggleExam}
-                            />
+                            <ExamCheckbox key={e.id} id={e.id} label={t(e.name)}
+                              checked={selectedExams.includes(e.id)} onToggle={toggleExam} />
                           ))}
                         </div>
                         <div>
-                          <Label className="flex items-center gap-1.5">
-                            <MessageSquare size={11} /> {t('custom_exam_obs_label')}
+                          <Label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+                            <MessageSquare size={12} /> {t('custom_exam_obs_label')}
                           </Label>
                           <Textarea rows={2}
-                            className="border-slate-200 bg-slate-50 focus:bg-white"
+                            className="mt-1.5 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50 resize-none"
                             placeholder={t('custom_exam_obs_placeholder')}
                             value={examDescriptions[cat] || ''}
                             onChange={e => setExamDescriptions(p => ({ ...p, [cat]: e.target.value }))} />
@@ -515,20 +516,20 @@ export const NewOrder: React.FC = () => {
                 );
               })}
 
-              {/* Custom categories */}
+              {/* Categorías personalizadas */}
               {customCats.map(cat => {
                 const sel    = cat.exams.filter(e => selectedExams.includes(e.id)).length;
                 const isOpen = expanded[cat.id] || false;
                 return (
                   <div key={cat.id} className={cn(
                     'border rounded-xl overflow-hidden transition-all',
-                    isOpen ? 'border-violet-300 bg-white shadow-sm' : 'border-violet-200 bg-violet-50/40 hover:bg-violet-50'
+                    isOpen ? 'border-[#0F4C81]/30 shadow-sm' : 'border-[#0F4C81]/15 bg-[#0F4C81]/3 hover:bg-[#0F4C81]/5'
                   )}>
                     <div className="flex items-center justify-between px-4 py-3">
                       <button type="button" onClick={() => toggleCat(cat.id)} className="flex items-center gap-2.5 flex-1 text-left">
-                        <span className="text-xs font-bold text-violet-800 uppercase tracking-wide">{cat.title}</span>
-                        {sel > 0 && <span className="px-2 py-0.5 text-[10px] font-bold bg-violet-600 text-white rounded-full">{sel}</span>}
-                        <span className="text-[9px] font-bold text-violet-400 border border-violet-200 px-1.5 py-0.5 rounded uppercase">{t('custom_cat_badge')}</span>
+                        <span className="text-xs font-bold text-[#0F4C81] uppercase tracking-wide">{cat.title}</span>
+                        {sel > 0 && <span className="px-2 py-0.5 text-[10px] font-bold bg-[#0F4C81] text-white rounded-full">{sel}</span>}
+                        <span className="text-[9px] font-bold text-[#0F4C81]/50 border border-[#0F4C81]/20 px-1.5 py-0.5 rounded uppercase">{t('custom_cat_badge')}</span>
                       </button>
                       <div className="flex items-center gap-1">
                         <button type="button" onClick={() => removeCategory(cat.id)}
@@ -536,25 +537,25 @@ export const NewOrder: React.FC = () => {
                           title={t('custom_cat_delete_title')}>
                           <Trash2 size={13} />
                         </button>
-                        <button type="button" onClick={() => toggleCat(cat.id)} className="text-slate-400">
+                        <button type="button" onClick={() => toggleCat(cat.id)} className="text-slate-400 p-1">
                           {isOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                         </button>
                       </div>
                     </div>
                     {isOpen && (
-                      <div className="px-4 pb-4 pt-2 border-t border-violet-100 space-y-3 animate-fade-in">
+                      <div className="px-4 pb-4 pt-2 border-t border-[#0F4C81]/10 space-y-3 animate-fade-in">
                         {cat.exams.length > 0 && (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {cat.exams.map(e => (
                               <div key={e.id} className={cn(
-                                'flex items-start gap-2 p-2.5 rounded-lg border text-xs font-medium transition-all',
+                                'flex items-start gap-2 p-3 rounded-xl border text-xs font-medium transition-all',
                                 selectedExams.includes(e.id)
-                                  ? 'bg-violet-50 border-violet-300 text-violet-800'
+                                  ? 'bg-[#0F4C81]/8 border-[#0F4C81]/30 text-[#0F4C81]'
                                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                               )}>
                                 <input type="checkbox" checked={selectedExams.includes(e.id)}
                                   onChange={() => toggleExam(e.id)}
-                                  className="mt-0.5 w-3.5 h-3.5 rounded accent-violet-600 cursor-pointer" />
+                                  className="mt-0.5 w-3.5 h-3.5 rounded accent-[#0F4C81] cursor-pointer" />
                                 <span className="flex-1 leading-snug">{e.name}</span>
                                 <button type="button" onClick={() => removeExamFromCat(cat.id, e.id)}
                                   className="text-slate-300 hover:text-red-500 shrink-0 transition-colors" title={t('custom_exam_delete_title')}>
@@ -565,22 +566,24 @@ export const NewOrder: React.FC = () => {
                           </div>
                         )}
                         <div className="flex gap-2">
-                          <Input className="h-8 text-xs border-slate-200 bg-slate-50 focus:bg-white"
+                          <Input
+                            className="h-9 text-sm border-slate-200 bg-slate-50/50 focus:bg-white"
                             placeholder={t('custom_exam_placeholder')}
                             value={newExamNames[cat.id] || ''}
                             onChange={e => setNewExamNames(p => ({ ...p, [cat.id]: e.target.value }))}
-                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addExamToCat(cat.id); } }} />
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addExamToCat(cat.id); } }}
+                          />
                           <button type="button" onClick={() => addExamToCat(cat.id)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-lg transition-colors shrink-0">
-                            <PlusCircle size={12} /> {t('custom_exam_add_btn')}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-[#0F4C81] hover:bg-[#0a3a63] text-white text-xs font-bold rounded-xl transition-colors shrink-0">
+                            <PlusCircle size={13} /> {t('custom_exam_add_btn')}
                           </button>
                         </div>
                         <div>
-                          <Label className="flex items-center gap-1.5 mt-1">
-                            <MessageSquare size={11} /> {t('custom_exam_obs_label')}
+                          <Label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 mt-1">
+                            <MessageSquare size={12} /> {t('custom_exam_obs_label')}
                           </Label>
                           <Textarea rows={2}
-                            className="border-slate-200 bg-slate-50 focus:bg-white"
+                            className="mt-1.5 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50 resize-none"
                             placeholder={t('custom_exam_obs_placeholder')}
                             value={examDescriptions[cat.id] || ''}
                             onChange={e => setExamDescriptions(p => ({ ...p, [cat.id]: e.target.value }))} />
@@ -591,100 +594,116 @@ export const NewOrder: React.FC = () => {
                 );
               })}
 
-              {/* Add category */}
+              {/* Añadir categoría personalizada */}
               {addingCat ? (
-                <div className="border border-dashed border-violet-300 rounded-xl p-4 bg-violet-50/40 space-y-3">
-                  <p className="text-xs font-bold text-violet-700">{t('custom_cat_new_title')}</p>
-                  <div className="flex gap-2">
-                    <Input className="h-8 text-xs border-violet-200 focus:border-violet-400 bg-white" autoFocus
-                      placeholder={t('custom_cat_placeholder')} value={newCatTitle}
-                      onChange={e => setNewCatTitle(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCategory(); } }} />
-                    <button type="button" onClick={addCategory}
-                      className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-lg shrink-0 transition-colors">
-                      {t('custom_cat_create')}
-                    </button>
-                    <button type="button" onClick={() => { setAddingCat(false); setNewCatTitle(''); }}
-                      className="px-3 py-1.5 bg-white border border-slate-200 text-slate-500 hover:text-slate-700 text-xs font-bold rounded-lg shrink-0 transition-colors">
-                      {t('custom_cat_cancel')}
-                    </button>
-                  </div>
+                <div className="flex gap-2 p-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/50">
+                  <Input
+                    autoFocus
+                    className="h-9 text-sm border-slate-200 bg-white"
+                    placeholder={t('custom_cat_placeholder')}
+                    value={newCatTitle}
+                    onChange={e => setNewCatTitle(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCategory(); } if (e.key === 'Escape') setAddingCat(false); }}
+                  />
+                  <button type="button" onClick={addCategory}
+                    className="px-3 py-2 bg-[#0F4C81] hover:bg-[#0a3a63] text-white text-xs font-bold rounded-xl transition-colors shrink-0">
+                    {t('custom_cat_create')}
+                  </button>
+                  <button type="button" onClick={() => { setAddingCat(false); setNewCatTitle(''); }}
+                    className="px-3 py-2 border border-slate-200 text-slate-500 text-xs font-medium rounded-xl hover:bg-slate-100 transition-colors shrink-0">
+                    {t('custom_cat_cancel')}
+                  </button>
                 </div>
               ) : (
                 <button type="button" onClick={() => setAddingCat(true)}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 border border-dashed border-slate-300 hover:border-violet-300 rounded-xl text-xs font-semibold text-slate-400 hover:text-violet-600 hover:bg-violet-50/40 transition-all">
-                  <PlusCircle size={14} /> {t('custom_cat_add_btn')}
+                  className="flex items-center gap-2 w-full px-4 py-3 border border-dashed border-slate-300 rounded-xl text-sm font-medium text-slate-500 hover:border-[#0F4C81]/40 hover:text-[#0F4C81] hover:bg-[#0F4C81]/3 transition-all">
+                  <PlusCircle size={16} />
+                  {t('custom_cat_add_btn')}
                 </button>
               )}
             </div>
-          </Section>
+          </Card>
         </div>
 
-        {/* ── Right column — summary sticky ──────────────────────────────── */}
-        <div className="space-y-4 lg:sticky lg:top-24">
-          <Section>
-            <SectionHeader icon={FileText} title={t('new_order_sec_summary')} />
+        {/* ── Columna derecha — Resumen sticky ─────────────────────────── */}
+        <div className="lg:col-span-1 lg:sticky lg:top-20 space-y-4">
+
+          {/* Panel resumen */}
+          <Card>
+            <CardHead icon={ClipboardList} title={t('new_order_sec_summary')} />
             <div className="p-5 space-y-4">
 
-              {/* Patient */}
+              {/* Paciente */}
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">{t('pat_col_name')}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">{t('pat_col_name')}</p>
                 {patQuery.trim() ? (
-                  <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{patQuery.trim()}</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      {selectedPatient ? `DNI: ${selectedPatient.identityCard}` : (
-                        <span className="text-teal-600 font-semibold">({t('new_patient')})</span>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-[#0F4C81]/10 text-[#0F4C81] flex items-center justify-center text-xs font-bold shrink-0">
+                      {patQuery.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900 leading-tight">{patQuery}</p>
+                      {patientId && selectedPatient && (
+                        <p className="text-xs text-slate-400">{selectedPatient.identityCard}</p>
                       )}
-                    </p>
+                    </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1.5 p-2.5 rounded-lg border border-red-200 bg-red-50 text-xs text-red-500 font-medium">
-                    <Info size={12} /> {t('new_order_no_patient')}
-                  </div>
+                  <p className="text-sm text-slate-400 italic">{t('new_order_no_patient')}</p>
                 )}
               </div>
 
+              {/* Fecha y estado */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t('date')}</p>
+                  <p className="text-sm font-semibold text-slate-900">{orderDate || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t('status')}</p>
+                  <p className={cn('text-sm font-semibold',
+                    orderStatus === 'Concluido' ? 'text-emerald-600' :
+                    orderStatus === 'Pendiente' ? 'text-amber-600' : 'text-slate-500'
+                  )}>
+                    {orderStatus === 'Concluido' ? t('status_completed') :
+                     orderStatus === 'Pendiente' ? t('status_pending') : t('status_cancelled')}
+                  </p>
+                </div>
+              </div>
+
               {/* CID */}
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">{t('print_cid')}</p>
-                {codeCID
-                  ? <span className="font-mono text-xs font-bold text-teal-700 bg-teal-50 border border-teal-200 px-2.5 py-1 rounded-lg inline-block">{codeCID.toUpperCase()}</span>
-                  : <span className="text-xs text-slate-400 italic">{t('new_order_no_cid')}</span>
-                }
-              </div>
-
-              {/* Date */}
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">{t('new_order_date_label')}</p>
-                <span className="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg inline-block">
-                  {orderDate || t('new_order_select_date')}
-                </span>
-              </div>
-
-              {/* Exams */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{t('new_order_selected_exams_label')}</p>
-                  <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-md">
-                    {selectedExams.length}
+              {codeCID && (
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">CID</p>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#06B6D4]/8 border border-[#06B6D4]/15">
+                    <Hash size={11} className="text-[#06B6D4]" />
+                    <span className="font-mono text-xs font-bold text-[#06B6D4]">{codeCID.toUpperCase()}</span>
                   </span>
                 </div>
-                {!selectedExams.length ? (
-                  <div className="border border-dashed border-slate-200 rounded-lg p-4 text-center text-xs text-slate-400 italic">
-                    {t('new_order_no_exams')}
-                  </div>
+              )}
+
+              {/* Exámenes seleccionados */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('new_order_selected_exams_label')}</p>
+                  {selectedExams.length > 0 && (
+                    <span className="text-[10px] font-bold text-white bg-[#0F4C81] px-2 py-0.5 rounded-full">{selectedExams.length}</span>
+                  )}
+                </div>
+                {selectedExams.length === 0 ? (
+                  <p className="text-sm text-slate-400 italic">{t('new_order_no_exams')}</p>
                 ) : (
-                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                  <div className="space-y-1.5 max-h-52 overflow-y-auto">
                     {selectedExams.map(eid => {
-                      const exam   = exams.find(e => e.id === eid);
-                      const custom = !exam ? customCats.flatMap(c => c.exams).find(e => e.id === eid) : null;
-                      const label  = exam ? t(exam.name) : custom?.name ?? eid;
+                      const exam = exams.find(e => e.id === eid);
+                      const customExam = customCats.flatMap(c => c.exams).find(e => e.id === eid);
+                      const label = exam ? t(exam.name) : customExam?.name ?? eid;
                       return (
-                        <div key={eid} className="flex items-center gap-2 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700">
-                          <span className="flex-1 truncate">{label}</span>
-                          <button onClick={() => toggleExam(eid)}
-                            className="text-slate-300 hover:text-red-500 transition-colors shrink-0">
+                        <div key={eid} className="flex items-start gap-2 group">
+                          <div className="w-1.5 h-1.5 rounded-full bg-[#0F4C81] mt-1.5 shrink-0" />
+                          <p className="text-xs text-slate-700 leading-snug flex-1">{label}</p>
+                          <button type="button" onClick={() => toggleExam(eid)}
+                            className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0">
                             <X size={12} />
                           </button>
                         </div>
@@ -693,26 +712,35 @@ export const NewOrder: React.FC = () => {
                   </div>
                 )}
               </div>
-
-              {/* Actions */}
-              <div className="pt-3 border-t border-slate-200 space-y-2">
-                <button type="button" onClick={() => handleSave(true)}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm rounded-xl shadow-sm hover:shadow-md transition-all active:scale-[0.98]">
-                  <Printer size={15} /> {t('save_and_print')}
-                </button>
-                <button type="button" onClick={() => handleSave(false)}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm rounded-xl transition-all active:scale-[0.98]">
-                  {t('save_no_print')}
-                </button>
-                <button type="button" onClick={handleCancel}
-                  className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-bold text-sm rounded-xl transition-all">
-                  {t('cancel')}
-                </button>
-              </div>
             </div>
-          </Section>
-        </div>
+          </Card>
 
+          {/* Botones de acción */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => handleSave(false)}
+              className="flex items-center justify-center gap-2 w-full h-12 rounded-xl bg-[#0F4C81] hover:bg-[#0a3a63] text-white text-sm font-bold shadow-sm hover:shadow-md transition-all"
+            >
+              <Check size={17} strokeWidth={2.5} />
+              {t('save')}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSave(true)}
+              className="flex items-center justify-center gap-2 w-full h-11 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-sm font-semibold transition-all"
+            >
+              {t('save_and_print')}
+            </button>
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="flex items-center justify-center w-full h-10 rounded-xl text-sm font-medium text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              {t('cancel')}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
