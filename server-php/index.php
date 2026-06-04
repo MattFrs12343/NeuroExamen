@@ -46,6 +46,11 @@ if ($uri === '/orders' || preg_match('#^/orders/[^/]+$#', $uri)) {
     require __DIR__ . '/api/orders/index.php'; exit;
 }
 
+// ── Setup / Utilities (solo GET, requiere ?confirm=RESET) ────────────────────
+if ($uri === '/setup/reset') {
+    require __DIR__ . '/setup/reset_data.php'; exit;
+}
+
 // ── 404 ───────────────────────────────────────────────────────────────────────
 header('Content-Type: application/json');
 http_response_code(404);
