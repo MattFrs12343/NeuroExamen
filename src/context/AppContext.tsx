@@ -3,14 +3,45 @@ import type { ViewType, User, Patient, Exam, Order, OrderStatus } from '../types
 import { INITIAL_EXAMS } from '../data/seedData';
 
 const EXAMS: Exam[] = INITIAL_EXAMS;
-// URL del backend PHP — cambiar a la URL de producción antes de hacer build
 const API = (import.meta.env.VITE_API_URL as string) || 'http://localhost/neuro-api/api';
 
 const getToken = () => localStorage.getItem('neuro_token') || '';
-
 const authHeaders = () => ({
   'Content-Type': 'application/json',
   Authorization: `Bearer ${getToken()}`,
+});
+
+// ── Mock orders para visualizar paginación sin backend ────────────────────
+const NAMES = [
+  'Maria Silva Santos','João Carlos Oliveira','Ana Beatriz Fernandes',
+  'Carlos Eduardo Mendes','Luciana Costa Araújo','Roberto Alves Pereira',
+  'Fernanda Lima Rodrigues','Paulo Roberto Nascimento','Juliana Moreira Carvalho',
+  'Marcos Antônio Vieira','Patrícia Gonçalves Souza','André Luís Barbosa',
+  'Camila Dias Ferreira','Ricardo Santos Martins','Vanessa Rocha Lima',
+  'Diego Henrique Batista','Cristiane Nunes Pinto','Felipe Augusto Ramos',
+  'Simone Teixeira Alves','Bruno César Cavalcanti',
+];
+const CIDS = ['G40.9','G35','G20','G43.9','G51.0','G47.3','G62.9','G72.9','G80.0','G93.1'];
+const STATUSES: OrderStatus[] = ['Concluido','Concluido','Pendiente','Concluido','Cancelado'];
+const EXAM_SETS = [['eeg-01'],['pev-01','pev-02'],['enm-sup-01'],['rm-01','rm-03'],['tc-01'],['cog-01','cog-02']];
+
+const MOCK_ORDERS: Order[] = Array.from({ length: 50 }, (_, i) => {
+  const d = new Date(2025, 0, 1);
+  d.setDate(d.getDate() + i * 7);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const name  = NAMES[i % NAMES.length];
+  return {
+    id:                  `MOCK-${String(i + 1).padStart(3, '0')}`,
+    patientId:           `mock-pat-${i % NAMES.length}`,
+    patientName:         name,
+    patientIdentityCard: `${String(100 + i).padStart(3,'0')}.${String(200+i).padStart(3,'0')}.${String(300+i).padStart(3,'0')}-${String(i % 99).padStart(2,'0')}`,
+    date:                dateStr,
+    codeCID:             CIDS[i % CIDS.length],
+    status:              STATUSES[i % STATUSES.length],
+    exams:               EXAM_SETS[i % EXAM_SETS.length],
+    createdBy:           'Dr. Demo',
+  };
 });
 
 interface AppContextProps {
@@ -86,11 +117,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     try {
       const res = await fetch(`${API}/orders`, { headers: authHeaders() });
       if (res.ok) {
-        setOrders(await res.json());
+        const data = await res.json();
+        // Si el servidor responde pero sin datos, mostrar mock para visualización
+        setOrders(data.length > 0 ? data : MOCK_ORDERS);
       } else {
         handleAuthError(res.status);
+        // Si no es error de auth, usar mock
+        if (res.status !== 401 && res.status !== 403) setOrders(MOCK_ORDERS);
       }
-    } catch { /* server offline — keep current state */ }
+    } catch {
+      // Servidor offline — usar mock para que la UI sea visible
+      setOrders(MOCK_ORDERS);
+    }
   }, [handleAuthError]);
 
   // ── Session restore on mount ──────────────────────────────────────────────
