@@ -4,9 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useApp } from '../context/AppContext';
-import { Mail, Lock, AlertCircle, Eye, EyeOff, Activity, Brain, Zap, Shield } from 'lucide-react';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
+import { Mail, Lock, Eye, EyeOff, AlertCircle, ShieldCheck } from 'lucide-react';
 import { cn } from '../lib/utils';
 import cerebroLogo from '../assets/cerebro.png';
 
@@ -18,28 +16,13 @@ const getSchema = (t: (k: string) => string) => z.object({
 });
 type LoginForm = z.infer<ReturnType<typeof getSchema>>;
 
-// ── Neural network background pattern ───────────────────────────────────────
-const NeuralPattern = () => (
-  <svg className="absolute inset-0 w-full h-full opacity-[0.02]" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <pattern id="neural" width="100" height="100" patternUnits="userSpaceOnUse">
-        <circle cx="50" cy="50" r="2" fill="white" opacity="0.5"/>
-        <line x1="0" y1="0" x2="50" y2="50" stroke="white" strokeWidth="0.5" opacity="0.3"/>
-        <line x1="100" y1="0" x2="50" y2="50" stroke="white" strokeWidth="0.5" opacity="0.3"/>
-        <line x1="0" y1="100" x2="50" y2="50" stroke="white" strokeWidth="0.5" opacity="0.3"/>
-        <line x1="100" y1="100" x2="50" y2="50" stroke="white" strokeWidth="0.5" opacity="0.3"/>
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#neural)" />
-  </svg>
-);
-
 export const Login: React.FC = () => {
   const { setCurrentUser, setCurrentView } = useApp();
   const { t } = useTranslation();
-  const [showPwd, setShowPwd] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [showPwd,  setShowPwd]  = useState(false);
+  const [remember, setRemember] = useState(false);
+  const [error,    setError]    = useState<string | null>(null);
+  const [loading,  setLoading]  = useState(false);
 
   const schema = useMemo(() => getSchema(t), [t]);
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
@@ -65,198 +48,230 @@ export const Login: React.FC = () => {
         setError(json.error || t('login_error_invalid'));
       }
     } catch {
-      setError('No se pudo conectar con el servidor. Verifica que el backend esté en ejecución.');
+      setError('No se pudo conectar con el servidor.');
     } finally { setLoading(false); }
   };
 
-  const features = [
-    { icon: Brain,    label: 'Diagnóstico neurológico avanzado',   desc: 'Basado en protocolos internacionales' },
-    { icon: Zap,      label: 'Creación de pedidos en < 60s',       desc: 'Optimizado para alta demanda clínica' },
-    { icon: Activity, label: 'Integración con sistemas DICOM',     desc: 'Compatible con equipos de resonancia' },
-    { icon: Shield,   label: 'Cumplimiento HIPAA & LGPD',          desc: 'Seguridad certificada para datos médicos' },
-  ];
-
   return (
-    <div className="min-h-screen flex bg-slate-50">
+    <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center px-4 py-12">
 
-      {/* ══════════════════════════════════════════════════════════════════
-          LEFT PANEL — Premium Medical Brand Experience
-      ══════════════════════════════════════════════════════════════════ */}
-      <div className="hidden lg:flex lg:w-[52%] relative overflow-hidden bg-gradient-to-br from-[#0F4C81] via-[#0a3a63] to-[#062943]">
-        
-        {/* Neural network pattern */}
-        <NeuralPattern />
-
-        {/* Gradient orbs */}
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full bg-gradient-to-br from-[#06B6D4]/20 to-transparent blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full bg-gradient-to-tr from-[#10B981]/10 to-transparent blur-3xl" />
-
-        <div className="relative z-10 flex flex-col justify-between w-full p-12 xl:p-16">
-
-          {/* Logo & Brand */}
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20">
-              <img src={cerebroLogo} alt="NeuroExámenes" className="w-7 h-7 object-contain" />
-            </div>
-            <div>
-              <p className="text-xl font-bold text-white tracking-tight">NeuroExámenes</p>
-              <p className="text-xs text-white/60 font-medium mt-0.5">Medical Platform</p>
-            </div>
-          </div>
-
-          {/* Main message */}
-          <div className="max-w-xl space-y-6">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/20">
-              <div className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
-              <span className="text-xs font-semibold text-white/90 uppercase tracking-wider">
-                Plataforma Certificada ISO 27001
-              </span>
-            </div>
-
-            <h1 className="text-5xl font-bold text-white leading-[1.1] tracking-tight">
-              Sistema de Gestión<br/>
-              Neurológica Premium
-            </h1>
-
-            <p className="text-lg text-white/70 leading-relaxed">
-              Plataforma SaaS diseñada para neurólogos y centros especializados.
-              Diagnósticos precisos, flujos optimizados, cumplimiento normativo.
-            </p>
-
-            {/* Features */}
-            <div className="grid grid-cols-1 gap-4 pt-4">
-              {features.map(({ icon: Icon, label, desc }) => (
-                <div key={label} className="flex items-start gap-4 p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 transition-all">
-                  <div className="p-2 rounded-lg bg-white/10 shrink-0">
-                    <Icon size={20} className="text-white" strokeWidth={1.5} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-white">{label}</p>
-                    <p className="text-xs text-white/60 mt-0.5">{desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="flex items-center justify-between text-xs text-white/40">
-            <p>© {new Date().getFullYear()} NeuroExámenes. Todos los derechos reservados.</p>
-            <p>v2.0.0</p>
-          </div>
-        </div>
+      {/* ── Abstract background — very subtle ─────────────────────────── */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        {/* Top-right orb */}
+        <div className="absolute -top-32 -right-32 w-[480px] h-[480px] rounded-full bg-[#0F4C81]/5" />
+        {/* Bottom-left orb */}
+        <div className="absolute -bottom-40 -left-20 w-[360px] h-[360px] rounded-full bg-[#4A90E2]/6" />
+        {/* Subtle grid dots */}
+        <svg className="absolute inset-0 w-full h-full opacity-[0.018]" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern id="dots" width="32" height="32" patternUnits="userSpaceOnUse">
+              <circle cx="1.5" cy="1.5" r="1.5" fill="#0F4C81" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#dots)" />
+        </svg>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════════════
-          RIGHT PANEL — Login Form (Premium Card)
-      ══════════════════════════════════════════════════════════════════ */}
-      <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
-        
-        {/* Logo mobile */}
-        <div className="absolute top-6 left-6 flex items-center gap-2.5 lg:hidden">
-          <img src={cerebroLogo} alt="NeuroExámenes" className="w-7 h-7 object-contain" />
-          <span className="text-sm font-semibold text-slate-800">NeuroExámenes</span>
-        </div>
+      {/* ── Card ───────────────────────────────────────────────────────── */}
+      <div className="relative w-full max-w-[420px]">
 
-        {/* Premium floating card */}
-        <div className="w-full max-w-md">
-          <div className="bg-white rounded-2xl shadow-premium-lg border border-slate-200/60 p-8 lg:p-10">
-
-            {/* Header */}
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{t('login_title')}</h1>
-              <p className="text-sm text-slate-500 mt-2">{t('login_subtitle')}</p>
+        {/* Branding */}
+        <div className="flex flex-col items-center mb-10 gap-4">
+          {/* Logo mark */}
+          <div className="relative">
+            <div className="w-16 h-16 rounded-2xl bg-[#0F4C81] flex items-center justify-center shadow-lg">
+              <img src={cerebroLogo} alt="NeuroExámenes" className="w-9 h-9 object-contain" />
             </div>
+            {/* Online indicator */}
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white border-2 border-white flex items-center justify-center">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+            </div>
+          </div>
 
-            {/* Error feedback */}
-            {error && (
-              <div className="mb-6 flex items-start gap-3 px-4 py-3.5 rounded-xl bg-red-50 border border-red-100">
-                <AlertCircle size={18} className="shrink-0 mt-0.5 text-red-500" strokeWidth={2} />
-                <p className="text-sm text-red-600 leading-snug">{error}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  {t('login_email')}
-                </label>
-                <div className="relative">
-                  <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" strokeWidth={1.5} />
-                  <Input
-                    type="email"
-                    placeholder="doctor@ejemplo.com"
-                    {...register('email')}
-                    className={cn(
-                      'pl-12 h-12 text-base border-slate-200 bg-slate-50/50 placeholder:text-slate-400',
-                      'focus:bg-white focus:border-primary/50 focus:ring-2 focus:ring-primary/10',
-                      'transition-all',
-                      errors.email && 'border-red-300 focus:border-red-400 focus:ring-red-100'
-                    )}
-                  />
-                </div>
-                {errors.email && (
-                  <p className="mt-2 text-xs text-red-500 flex items-center gap-1.5">
-                    <AlertCircle size={12} /> {errors.email.message}
-                  </p>
-                )}
-              </div>
-
-              {/* Password */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  {t('login_password')}
-                </label>
-                <div className="relative">
-                  <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" strokeWidth={1.5} />
-                  <Input
-                    type={showPwd ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    {...register('password')}
-                    className={cn(
-                      'pl-12 pr-12 h-12 text-base border-slate-200 bg-slate-50/50 placeholder:text-slate-400',
-                      'focus:bg-white focus:border-primary/50 focus:ring-2 focus:ring-primary/10',
-                      'transition-all',
-                      errors.password && 'border-red-300 focus:border-red-400 focus:ring-red-100'
-                    )}
-                  />
-                  <button 
-                    type="button" 
-                    onClick={() => setShowPwd(!showPwd)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                  >
-                    {showPwd ? <EyeOff size={18} strokeWidth={1.5} /> : <Eye size={18} strokeWidth={1.5} />}
-                  </button>
-                </div>
-                {errors.password && (
-                  <p className="mt-2 text-xs text-red-500 flex items-center gap-1.5">
-                    <AlertCircle size={12} /> {errors.password.message}
-                  </p>
-                )}
-              </div>
-
-              <Button 
-                type="submit" 
-                className="w-full h-12 text-base font-semibold bg-primary hover:bg-primary/90 shadow-sm hover:shadow-md transition-all mt-6" 
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    {t('loading')}
-                  </>
-                ) : t('login_btn')}
-              </Button>
-            </form>
-
-            {/* Footer note */}
-            <p className="text-xs text-center text-slate-400 mt-8">
-              Plataforma protegida con cifrado SSL/TLS y autenticación JWT
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-[#0F4C81] tracking-tight">NeuroExámenes</h1>
+            <p className="text-sm text-slate-500 mt-1 font-medium">
+              Plataforma de gestión neurológica clínica
             </p>
           </div>
         </div>
+
+        {/* Form card */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_4px_24px_-4px_rgba(15,76,129,0.10)] p-8">
+
+          {/* Error */}
+          {error && (
+            <div className="mb-6 flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-100 text-sm text-red-600">
+              <AlertCircle size={18} className="shrink-0 mt-0.5 text-red-500" strokeWidth={2} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
+
+            {/* Email */}
+            <div>
+              <label
+                htmlFor="email"
+                className="block text-sm font-semibold text-slate-700 mb-2"
+              >
+                {t('login_email')}
+              </label>
+              <div className="relative">
+                <Mail
+                  size={18}
+                  strokeWidth={1.75}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                />
+                <input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="doctor@ejemplo.com"
+                  {...register('email')}
+                  className={cn(
+                    'w-full h-12 pl-12 pr-4 rounded-xl border bg-slate-50 text-slate-900 text-sm',
+                    'placeholder:text-slate-400 outline-none',
+                    'transition-all duration-150',
+                    'focus:bg-white focus:border-[#4A90E2] focus:ring-3 focus:ring-[#4A90E2]/15',
+                    errors.email
+                      ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
+                      : 'border-slate-200'
+                  )}
+                />
+              </div>
+              {errors.email && (
+                <p className="mt-2 text-xs text-red-500 flex items-center gap-1.5">
+                  <AlertCircle size={12} strokeWidth={2} />
+                  {errors.email.message}
+                </p>
+              )}
+            </div>
+
+            {/* Password */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label
+                  htmlFor="password"
+                  className="text-sm font-semibold text-slate-700"
+                >
+                  {t('login_password')}
+                </label>
+                <button
+                  type="button"
+                  className="text-xs font-medium text-[#4A90E2] hover:text-[#0F4C81] transition-colors"
+                >
+                  ¿Olvidó su contraseña?
+                </button>
+              </div>
+              <div className="relative">
+                <Lock
+                  size={18}
+                  strokeWidth={1.75}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                />
+                <input
+                  id="password"
+                  type={showPwd ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  {...register('password')}
+                  className={cn(
+                    'w-full h-12 pl-12 pr-12 rounded-xl border bg-slate-50 text-slate-900 text-sm',
+                    'placeholder:text-slate-400 outline-none',
+                    'transition-all duration-150',
+                    'focus:bg-white focus:border-[#4A90E2] focus:ring-3 focus:ring-[#4A90E2]/15',
+                    errors.password
+                      ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
+                      : 'border-slate-200'
+                  )}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd(v => !v)}
+                  aria-label={showPwd ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {showPwd
+                    ? <EyeOff size={18} strokeWidth={1.75} />
+                    : <Eye    size={18} strokeWidth={1.75} />}
+                </button>
+              </div>
+              {errors.password && (
+                <p className="mt-2 text-xs text-red-500 flex items-center gap-1.5">
+                  <AlertCircle size={12} strokeWidth={2} />
+                  {errors.password.message}
+                </p>
+              )}
+            </div>
+
+            {/* Remember me */}
+            <label className="flex items-center gap-3 cursor-pointer select-none group">
+              <div className="relative shrink-0">
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={remember}
+                  onChange={e => setRemember(e.target.checked)}
+                />
+                <div className={cn(
+                  'w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all duration-150',
+                  remember
+                    ? 'bg-[#0F4C81] border-[#0F4C81]'
+                    : 'bg-white border-slate-300 group-hover:border-[#4A90E2]'
+                )}>
+                  {remember && (
+                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                      <path d="M1 4L3.8 7L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                </div>
+              </div>
+              <span className="text-sm text-slate-600 font-medium">Recordarme en este dispositivo</span>
+            </label>
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={loading}
+              className={cn(
+                'w-full h-12 rounded-xl text-white text-sm font-bold',
+                'bg-[#0F4C81] hover:bg-[#0d4070] active:bg-[#0a3560]',
+                'shadow-[0_4px_14px_0_rgba(15,76,129,0.35)]',
+                'hover:shadow-[0_6px_20px_0_rgba(15,76,129,0.45)]',
+                'transition-all duration-150',
+                'flex items-center justify-center gap-2.5 mt-2',
+                'disabled:opacity-60 disabled:cursor-not-allowed disabled:shadow-none'
+              )}
+            >
+              {loading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>{t('loading')}</span>
+                </>
+              ) : (
+                t('login_btn')
+              )}
+            </button>
+          </form>
+        </div>
+
+        {/* Security footer */}
+        <div className="flex items-center justify-center gap-5 mt-6">
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+            <ShieldCheck size={13} className="text-slate-400" strokeWidth={2} />
+            SSL / TLS
+          </div>
+          <div className="w-px h-3.5 bg-slate-300" />
+          <span className="text-xs text-slate-400 font-medium">ISO 27001</span>
+          <div className="w-px h-3.5 bg-slate-300" />
+          <span className="text-xs text-slate-400 font-medium">LGPD / HIPAA</span>
+        </div>
+
+        {/* Copyright */}
+        <p className="text-center text-[11px] text-slate-400 mt-4">
+          © {new Date().getFullYear()} NeuroExámenes · Todos los derechos reservados
+        </p>
       </div>
     </div>
   );
