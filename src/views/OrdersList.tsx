@@ -245,7 +245,7 @@ export const OrdersList: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <FileCheck size={13} className="text-slate-300" />
                         <span className="text-sm font-medium text-slate-600">
-                          {order.exams.length} {order.exams.length === 1 ? t('exam_single') : t('exam_plural')}
+                          {order.exams.length}
                         </span>
                       </div>
                     </td>
