@@ -96,7 +96,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const storedUser = localStorage.getItem('neuro_user');
     const token = getToken();
     if (storedUser && token) {
-      // Validate token against backend before restoring session
       fetch(`${API}/auth/me`, { headers: authHeaders() })
         .then(res => {
           if (res.ok) {
@@ -108,14 +107,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               localStorage.removeItem('neuro_user');
             }
           } else {
-            // Token expired or invalid — clear session and go to login
+            // Token expirado o inválido — limpiar sesión con mensaje claro
             localStorage.removeItem('neuro_user');
             localStorage.removeItem('neuro_token');
             setCurrentView('login');
+            if (res.status === 401 || res.status === 403) {
+              // Almacenar flag para mostrar mensaje en el login
+              sessionStorage.setItem('session_expired', '1');
+            }
           }
         })
         .catch(() => {
-          // Server offline — restore session optimistically from localStorage
+          // Servidor offline — restaurar sesión desde localStorage
           try {
             const user = JSON.parse(storedUser);
             setCurrentUser(user);

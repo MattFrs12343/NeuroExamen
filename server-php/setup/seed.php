@@ -13,12 +13,18 @@
 require_once __DIR__ . '/../config/database.php';
 
 // ── Configuración del usuario titular ──────────────────────────────────────
-$PROD_EMAIL    = 'jmcabello_merida@hotmail.com';
-$PROD_PASSWORD = 'password'; // Cambia esto antes de ejecutar en producción
-$PROD_NAME     = 'Dr. Juan Marcelo Cabello Mérida';
+// La contraseña se lee desde .env para no exponerla en el código fuente.
+// Define PROD_PASSWORD en server-php/.env antes de ejecutar este script.
+$PROD_EMAIL    = $_ENV['PROD_EMAIL']    ?? 'jmcabello_merida@hotmail.com';
+$PROD_PASSWORD = $_ENV['PROD_PASSWORD'] ?? null;
+$PROD_NAME     = $_ENV['PROD_NAME']     ?? 'Dr. Juan Marcelo Cabello Mérida';
 $PROD_SPEC     = 'Neurología Clínica y Neurofisiología';
 $PROD_CRM      = '123456';
 $PROD_RQE      = '98765';
+
+if (!$PROD_PASSWORD) {
+    die("✖ ERROR: Define PROD_PASSWORD en server-php/.env antes de ejecutar el seed.\n");
+}
 // ────────────────────────────────────────────────────────────────────────────
 
 $pdo = getDB();

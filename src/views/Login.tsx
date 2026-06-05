@@ -23,6 +23,10 @@ export const Login: React.FC = () => {
   const [error,   setError]   = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Detectar si la sesión expiró
+  const sessionExpired = sessionStorage.getItem('session_expired') === '1';
+  if (sessionExpired) sessionStorage.removeItem('session_expired');
+
   const schema = useMemo(() => getSchema(t), [t]);
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(schema),
@@ -90,6 +94,14 @@ export const Login: React.FC = () => {
 
         {/* Card del formulario */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_4px_24px_-4px_rgba(15,76,129,0.10)] p-8">
+
+          {/* Sesión expirada */}
+          {sessionExpired && !error && (
+            <div className="mb-6 flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-100 text-sm text-amber-700">
+              <AlertCircle size={18} className="shrink-0 mt-0.5 text-amber-500" strokeWidth={2} />
+              <span>Su sesión ha expirado. Por favor, inicie sesión nuevamente.</span>
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-100 text-sm text-red-600">
