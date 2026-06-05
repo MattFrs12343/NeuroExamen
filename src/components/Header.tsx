@@ -19,6 +19,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
     orders:      { label: t('nav_orders'),        sub: 'Gestión de pedidos médicos' },
     'new-order': { label: t('new_order_title'),   sub: 'Solicitud de exámenes neurológicos' },
     profile:     { label: t('nav_profile'),       sub: 'Configuración de cuenta' },
+    patients:    { label: t('nav_patients'),      sub: 'Directorio de pacientes' },
   };
 
   const current = viewTitle[currentView] ?? { label: 'NeuroExámenes', sub: '' };

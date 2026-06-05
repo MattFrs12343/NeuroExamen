@@ -6,6 +6,7 @@ import { Dashboard } from './views/Dashboard';
 import { OrdersList } from './views/OrdersList';
 import { NewOrder } from './views/NewOrder';
 import { Profile } from './views/Profile';
+import { Patients } from './views/Patients';
 import { PrintTemplate } from './components/PrintTemplate';
 import './App.css';
 
@@ -20,6 +21,7 @@ const AppContent: React.FC = () => {
       case 'orders':    return <OrdersList />;
       case 'new-order': return <NewOrder />;
       case 'profile':   return <Profile />;
+      case 'patients':  return <Patients />;
       default:          return <Dashboard />;
     }
   };

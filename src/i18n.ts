@@ -26,6 +26,7 @@ const resources = {
       // Sidebar
       nav_dashboard: "Dashboard",
       nav_orders: "Pedidos",
+      nav_patients: "Pacientes",
       nav_profile: "Mi Perfil",
       
       // Login
@@ -292,6 +293,7 @@ const resources = {
       // Sidebar
       nav_dashboard: "Painel",
       nav_orders: "Pedidos",
+      nav_patients: "Pacientes",
       nav_profile: "Meu Perfil",
       
       // Login
@@ -561,6 +563,7 @@ const resources = {
       // Sidebar
       nav_dashboard: "Dashboard",
       nav_orders: "Orders",
+      nav_patients: "Patients",
       nav_profile: "My Profile",
       
       // Login

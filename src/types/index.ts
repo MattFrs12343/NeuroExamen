@@ -1,4 +1,4 @@
-export type ViewType = 'login' | 'dashboard' | 'orders' | 'new-order' | 'profile';
+export type ViewType = 'login' | 'dashboard' | 'orders' | 'new-order' | 'profile' | 'patients';
 
 export interface User {
   id: string;
