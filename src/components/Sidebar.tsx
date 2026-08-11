@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import type { ViewType } from '../types';
-import { LayoutDashboard, FileText, LogOut, X, Users } from 'lucide-react';
+import { LayoutDashboard, FileText, LogOut, X, Pill, Stethoscope } from 'lucide-react';
 import { cn } from '../lib/utils';
 import cerebroLogo from '../assets/cerebro.png';
 
@@ -18,11 +18,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const menuItems = [
     { id: 'dashboard' as ViewType, label: t('nav_dashboard'), icon: LayoutDashboard },
     { id: 'orders'    as ViewType, label: t('nav_orders'),    icon: FileText },
-    { id: 'patients'  as ViewType, label: t('nav_patients'),  icon: Users },
+    { id: 'recetas'   as ViewType, label: t('nav_recetas'),   icon: Pill },
+    { id: 'encaminhamentos' as ViewType, label: t('nav_encaminhamentos'), icon: Stethoscope },
   ];
 
   const isActive = (id: ViewType) =>
-    currentView === id || (id === 'orders' && currentView === 'new-order');
+    currentView === id ||
+    (id === 'orders'  && currentView === 'new-order') ||
+    (id === 'recetas' && currentView === 'new-receta') ||
+    (id === 'encaminhamentos' && currentView === 'new-encaminhamento');
 
   return (
     <>

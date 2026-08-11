@@ -20,6 +20,10 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
     'new-order': { label: t('new_order_title'),   sub: 'Solicitud de exámenes neurológicos' },
     profile:     { label: t('nav_profile'),       sub: 'Configuración de cuenta' },
     patients:    { label: t('nav_patients'),      sub: 'Directorio de pacientes' },
+    recetas:     { label: t('nav_recetas'),       sub: 'Gestión de recetas médicas' },
+    'new-receta': { label: t('new_receta_title'), sub: 'Prescripción de medicamentos' },
+    encaminhamentos:     { label: t('nav_encaminhamentos'),      sub: 'Encaminhamentos para especialistas' },
+    'new-encaminhamento': { label: t('new_encaminhamento_title'), sub: 'Encaminhamento para especialista' },
   };
 
   const current = viewTitle[currentView] ?? { label: 'NeuroExámenes', sub: '' };

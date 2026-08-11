@@ -11,8 +11,9 @@ setCorsHeaders();
 $uri    = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $method = $_SERVER['REQUEST_METHOD'];
 
-// 1. Quitar el prefijo de subcarpeta + /api  →  /neuro-api/api/patients  ==>  /patients
-$uri = preg_replace('#^/neuro-api/api#', '', $uri);
+// 1. Quitar el prefijo + /api  →  /neuro-api/api/patients ó /api/patients  ==>  /patients
+//    Soporta desarrollo (/neuro-api/api) y producción (/api).
+$uri = preg_replace('#^(/neuro-api)?/api#', '', $uri);
 if ($uri === '' || $uri === false) $uri = '/';
 
 // 2. Normalizar: quitar trailing slash  →  /patients/  ==>  /patients
@@ -36,6 +37,21 @@ if ($uri === '/exams') {
     require __DIR__ . '/api/exams/index.php'; exit;
 }
 
+// ── Clinics ───────────────────────────────────────────────────────────────────
+if ($uri === '/clinics') {
+    require __DIR__ . '/api/clinics/index.php'; exit;
+}
+
+// ── Clínicas de Recetas (perfil completo, separadas de /clinics) ─────────────
+if ($uri === '/receta-clinics') {
+    require __DIR__ . '/api/receta-clinics/index.php'; exit;
+}
+
+// ── Estudios personalizados ──────────────────────────────────────────────────
+if ($uri === '/custom-exams' || preg_match('#^/custom-exams/[^/]+$#', $uri)) {
+    require __DIR__ . '/api/custom-exams/index.php'; exit;
+}
+
 // ── Orders PDF  (antes que la ruta genérica de orders) ───────────────────────
 if (preg_match('#^/orders/[^/]+/pdf$#', $uri)) {
     require __DIR__ . '/api/orders/pdf.php'; exit;
@@ -44,6 +60,26 @@ if (preg_match('#^/orders/[^/]+/pdf$#', $uri)) {
 // ── Orders ────────────────────────────────────────────────────────────────────
 if ($uri === '/orders' || preg_match('#^/orders/[^/]+$#', $uri)) {
     require __DIR__ . '/api/orders/index.php'; exit;
+}
+
+// ── Recetas ───────────────────────────────────────────────────────────────────
+if ($uri === '/recetas' || preg_match('#^/recetas/[^/]+$#', $uri)) {
+    require __DIR__ . '/api/recetas/index.php'; exit;
+}
+
+// ── Catálogo de medicamentos ─────────────────────────────────────────────────
+if ($uri === '/medications' || preg_match('#^/medications/[^/]+$#', $uri)) {
+    require __DIR__ . '/api/medications/index.php'; exit;
+}
+
+// ── Catálogo de especialistas ─────────────────────────────────────────────────
+if ($uri === '/specialists' || preg_match('#^/specialists/[^/]+$#', $uri)) {
+    require __DIR__ . '/api/specialists/index.php'; exit;
+}
+
+// ── Encaminhamentos ────────────────────────────────────────────────────────────
+if ($uri === '/encaminhamentos' || preg_match('#^/encaminhamentos/[^/]+$#', $uri)) {
+    require __DIR__ . '/api/encaminhamentos/index.php'; exit;
 }
 
 // ── Setup / Utilities (solo GET, requiere ?confirm=RESET) ────────────────────

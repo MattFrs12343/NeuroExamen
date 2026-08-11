@@ -5,16 +5,17 @@ import type { Exam, OrderStatus } from '../types';
 import {
   User, Search, Calendar, Hash, Check,
   ChevronDown, ChevronUp, ArrowLeft, X,
-  FileCheck2, Building2, PlusCircle, Trash2,
+  FileCheck2, PlusCircle,
   MessageSquare, ClipboardList, CheckCircle2,
 } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
+import { ClinicField } from '../components/ClinicField';
 import { cn } from '../lib/utils';
 
 interface CidEntry { codigo: string; descripcion: string; }
-interface CustomCategory { id: string; title: string; exams: { id: string; name: string }[]; }
+interface LegacyCustomExam { id: string; name: string; category: string; categoryTitle?: string; }
 
 // ── Componentes auxiliares fuera del render para evitar re-mounts ─────────
 const ExamCheckbox = ({
@@ -37,7 +38,7 @@ const ExamCheckbox = ({
 );
 
 const PanelCard = ({ children, className }: { children: React.ReactNode; className?: string }) => (
-  <div className={cn('bg-white rounded-2xl border border-slate-200/80 shadow-premium overflow-hidden', className)}>
+  <div className={cn('bg-white rounded-2xl border border-slate-200/80 shadow-premium', className)}>
     {children}
   </div>
 );
@@ -65,6 +66,8 @@ export const NewOrder: React.FC = () => {
     patients, exams, addOrder, updateOrder, addPatient,
     setCurrentView, activeOrderForEdit, setActiveOrderForEdit,
     triggerDirectPrint, currentUser,
+    lastClinicName, setLastClinicName,
+    customExamsCatalog, addCustomExam, deleteCustomExam,
   } = useApp();
 
   const isEdit = !!activeOrderForEdit;
@@ -72,7 +75,7 @@ export const NewOrder: React.FC = () => {
   const [patientId,        setPatientId]        = useState('');
   const [orderDate,        setOrderDate]        = useState('');
   const [codeCID,          setCodeCID]          = useState('');
-  const [clinicName,       setClinicName]       = useState('');
+  const [clinicName,       setClinicName]       = useState(lastClinicName);
   const [observations,     setObservations]     = useState('');
   const [selectedExams,    setSelectedExams]    = useState<string[]>([]);
   const [examDescriptions, setExamDescriptions] = useState<Record<string, string>>({});
@@ -81,10 +84,8 @@ export const NewOrder: React.FC = () => {
   const [showPatDrop,      setShowPatDrop]      = useState(false);
   const [examQuery,        setExamQuery]        = useState('');
   const [expanded,         setExpanded]         = useState<Record<string, boolean>>({ cat_eeg: true });
-  const [customCats,       setCustomCats]       = useState<CustomCategory[]>([]);
-  const [newCatTitle,      setNewCatTitle]      = useState('');
-  const [addingCat,        setAddingCat]        = useState(false);
-  const [newExamNames,     setNewExamNames]     = useState<Record<string, string>>({});
+  const [legacyCustomExams, setLegacyCustomExams] = useState<Record<string, LegacyCustomExam>>({});
+  const [newCustomExamName, setNewCustomExamName] = useState('');
 
   // CID-10
   const [cidList,     setCidList]     = useState<CidEntry[]>([]);
@@ -134,27 +135,24 @@ export const NewOrder: React.FC = () => {
       setSelectedExams(activeOrderForEdit.exams);
       setExamDescriptions(activeOrderForEdit.examDescriptions || {});
       setOrderStatus(activeOrderForEdit.status);
-      const loaded = activeOrderForEdit.customExams || {};
-      const map: Record<string, CustomCategory> = {};
-      Object.keys(loaded).forEach(eid => {
-        const info = loaded[eid];
-        if (!map[info.category]) map[info.category] = { id: info.category, title: info.categoryTitle || info.category, exams: [] };
-        map[info.category].exams.push({ id: info.id, name: info.name });
-      });
-      setCustomCats(Object.values(map));
+      setLegacyCustomExams(activeOrderForEdit.customExams || {});
     } else {
       const now = new Date();
       setOrderDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`);
       setOrderStatus('Concluido');
-      setCustomCats([]);
+      setLegacyCustomExams({});
     }
   }, [activeOrderForEdit, patients]);
 
   const examsByCategory = useMemo(() => {
     const g: Record<string, Exam[]> = {};
-    exams.forEach(e => { if (!g[e.category]) g[e.category] = []; g[e.category].push(e); });
+    exams.forEach(e => {
+      if (e.hidden && !selectedExams.includes(e.id)) return;
+      if (!g[e.category]) g[e.category] = [];
+      g[e.category].push(e);
+    });
     return g;
-  }, [exams]);
+  }, [exams, selectedExams]);
 
   const filteredPatients = useMemo(() => {
     if (!patQuery.trim()) return [];
@@ -165,34 +163,30 @@ export const NewOrder: React.FC = () => {
   const searchedExams = useMemo(() => {
     if (!examQuery.trim()) return [];
     const q = examQuery.toLowerCase();
-    return exams.filter(e => t(e.name).toLowerCase().includes(q) || t(e.category).toLowerCase().includes(q));
-  }, [exams, examQuery, t]);
+    return exams.filter(e =>
+      (!e.hidden || selectedExams.includes(e.id)) &&
+      (t(e.name).toLowerCase().includes(q) || t(e.category).toLowerCase().includes(q))
+    );
+  }, [exams, examQuery, t, selectedExams]);
 
   const selectedPatient  = patients.find(p => p.id === patientId);
   const toggleExam       = (id: string) => setSelectedExams(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
   const toggleCat        = (id: string) => setExpanded(p => ({ ...p, [id]: !p[id] }));
 
-  const addCategory = () => {
-    const title = newCatTitle.trim(); if (!title) return;
-    const id = `custom-cat-${Date.now()}`;
-    setCustomCats(p => [...p, { id, title, exams: [] }]);
-    setExpanded(p => ({ ...p, [id]: true }));
-    setNewCatTitle(''); setAddingCat(false);
+  const handleCreateCustomExam = async () => {
+    const name = newCustomExamName.trim(); if (!name) return;
+    try {
+      const created = await addCustomExam(name);
+      setSelectedExams(p => [...p, created.id]);
+      setNewCustomExamName('');
+      setExpanded(p => ({ ...p, cat_custom: true }));
+    } catch (e: any) { alert(t('save_error_msg', { message: e.message })); }
   };
-  const removeCategory = (id: string) => {
-    const cat = customCats.find(c => c.id === id);
-    if (cat) setSelectedExams(p => p.filter(x => !cat.exams.map(e => e.id).includes(x)));
-    setCustomCats(p => p.filter(c => c.id !== id));
-  };
-  const addExamToCat = (catId: string) => {
-    const name = (newExamNames[catId] || '').trim(); if (!name) return;
-    const eid = `custom-exam-${Date.now()}`;
-    setCustomCats(p => p.map(c => c.id === catId ? { ...c, exams: [...c.exams, { id: eid, name }] } : c));
-    setNewExamNames(p => ({ ...p, [catId]: '' }));
-  };
-  const removeExamFromCat = (catId: string, eid: string) => {
-    setCustomCats(p => p.map(c => c.id === catId ? { ...c, exams: c.exams.filter(e => e.id !== eid) } : c));
-    setSelectedExams(p => p.filter(x => x !== eid));
+  const handleDeleteCustomExam = async (id: string) => {
+    try {
+      await deleteCustomExam(id);
+      setSelectedExams(p => p.filter(x => x !== id));
+    } catch (e: any) { alert(t('save_error_msg', { message: e.message })); }
   };
 
   const handleSave = async (print: boolean) => {
@@ -213,9 +207,14 @@ export const NewOrder: React.FC = () => {
     }
 
     const customRecord: Record<string, { id: string; name: string; category: string; categoryTitle?: string }> = {};
-    customCats.forEach(cat => cat.exams.forEach(ex => {
-      customRecord[ex.id] = { id: ex.id, name: ex.name, category: cat.id, categoryTitle: cat.title };
-    }));
+    selectedExams.forEach(eid => {
+      const catalogExam = customExamsCatalog.find(e => e.id === eid);
+      if (catalogExam) {
+        customRecord[eid] = { id: eid, name: catalogExam.name, category: 'cat_custom', categoryTitle: t('custom_exam_section_title') };
+      } else if (legacyCustomExams[eid]) {
+        customRecord[eid] = legacyCustomExams[eid];
+      }
+    });
 
     const payload = {
       patientId: fPid, date: orderDate,
@@ -403,12 +402,7 @@ export const NewOrder: React.FC = () => {
                 <label className="block text-xs font-semibold text-slate-700 mb-2">
                   Clínica / Institución <span className="text-slate-400 font-normal">({t('optional')})</span>
                 </label>
-                <div className="relative">
-                  <Building2 size={16} strokeWidth={1.75} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                  <Input className="pl-10 h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50"
-                    placeholder="Ej: Clínica Neurológica del Sur"
-                    value={clinicName} onChange={e => setClinicName(e.target.value)} />
-                </div>
+                <ClinicField value={clinicName} onValueChange={v => { setClinicName(v); setLastClinicName(v); }} />
               </div>
 
               {/* Observaciones */}
@@ -516,37 +510,28 @@ export const NewOrder: React.FC = () => {
                 );
               })}
 
-              {/* Categorías personalizadas */}
-              {customCats.map(cat => {
-                const sel    = cat.exams.filter(e => selectedExams.includes(e.id)).length;
-                const isOpen = expanded[cat.id] || false;
+              {/* Estudios personalizados — catálogo compartido, se guarda en BD */}
+              {(() => {
+                const sel    = customExamsCatalog.filter(e => selectedExams.includes(e.id)).length;
+                const isOpen = expanded.cat_custom || false;
                 return (
-                  <div key={cat.id} className={cn(
+                  <div className={cn(
                     'border rounded-xl overflow-hidden transition-all',
                     isOpen ? 'border-[#0F4C81]/30 shadow-sm' : 'border-[#0F4C81]/15 bg-[#0F4C81]/3 hover:bg-[#0F4C81]/5'
                   )}>
-                    <div className="flex items-center justify-between px-4 py-3">
-                      <button type="button" onClick={() => toggleCat(cat.id)} className="flex items-center gap-2.5 flex-1 text-left">
-                        <span className="text-xs font-bold text-[#0F4C81] uppercase tracking-wide">{cat.title}</span>
+                    <button type="button" onClick={() => toggleCat('cat_custom')}
+                      className="w-full flex items-center justify-between px-4 py-3 text-left">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-xs font-bold text-[#0F4C81] uppercase tracking-wide">{t('custom_exam_section_title')}</span>
                         {sel > 0 && <span className="px-2 py-0.5 text-[10px] font-bold bg-[#0F4C81] text-white rounded-full">{sel}</span>}
-                        <span className="text-[9px] font-bold text-[#0F4C81]/50 border border-[#0F4C81]/20 px-1.5 py-0.5 rounded uppercase">{t('custom_cat_badge')}</span>
-                      </button>
-                      <div className="flex items-center gap-1">
-                        <button type="button" onClick={() => removeCategory(cat.id)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                          title={t('custom_cat_delete_title')}>
-                          <Trash2 size={13} />
-                        </button>
-                        <button type="button" onClick={() => toggleCat(cat.id)} className="text-slate-400 p-1">
-                          {isOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-                        </button>
                       </div>
-                    </div>
+                      {isOpen ? <ChevronUp size={15} className="text-[#0F4C81]/60" /> : <ChevronDown size={15} className="text-[#0F4C81]/60" />}
+                    </button>
                     {isOpen && (
                       <div className="px-4 pb-4 pt-2 border-t border-[#0F4C81]/10 space-y-3 animate-fade-in">
-                        {cat.exams.length > 0 && (
+                        {customExamsCatalog.length > 0 && (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {cat.exams.map(e => (
+                            {customExamsCatalog.map(e => (
                               <div key={e.id} className={cn(
                                 'flex items-start gap-2 p-3 rounded-xl border text-xs font-medium transition-all',
                                 selectedExams.includes(e.id)
@@ -557,7 +542,7 @@ export const NewOrder: React.FC = () => {
                                   onChange={() => toggleExam(e.id)}
                                   className="mt-0.5 w-3.5 h-3.5 rounded accent-[#0F4C81] cursor-pointer" />
                                 <span className="flex-1 leading-snug">{e.name}</span>
-                                <button type="button" onClick={() => removeExamFromCat(cat.id, e.id)}
+                                <button type="button" onClick={() => handleDeleteCustomExam(e.id)}
                                   className="text-slate-300 hover:text-red-500 shrink-0 transition-colors" title={t('custom_exam_delete_title')}>
                                   <X size={12} />
                                 </button>
@@ -569,11 +554,11 @@ export const NewOrder: React.FC = () => {
                           <Input
                             className="h-9 text-sm border-slate-200 bg-slate-50/50 focus:bg-white"
                             placeholder={t('custom_exam_placeholder')}
-                            value={newExamNames[cat.id] || ''}
-                            onChange={e => setNewExamNames(p => ({ ...p, [cat.id]: e.target.value }))}
-                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addExamToCat(cat.id); } }}
+                            value={newCustomExamName}
+                            onChange={e => setNewCustomExamName(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateCustomExam(); } }}
                           />
-                          <button type="button" onClick={() => addExamToCat(cat.id)}
+                          <button type="button" onClick={handleCreateCustomExam}
                             className="flex items-center gap-1.5 px-3 py-2 bg-[#0F4C81] hover:bg-[#0a3a63] text-white text-xs font-bold rounded-xl transition-colors shrink-0">
                             <PlusCircle size={13} /> {t('custom_exam_add_btn')}
                           </button>
@@ -585,42 +570,14 @@ export const NewOrder: React.FC = () => {
                           <Textarea rows={2}
                             className="mt-1.5 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50 resize-none"
                             placeholder={t('custom_exam_obs_placeholder')}
-                            value={examDescriptions[cat.id] || ''}
-                            onChange={e => setExamDescriptions(p => ({ ...p, [cat.id]: e.target.value }))} />
+                            value={examDescriptions['cat_custom'] || ''}
+                            onChange={e => setExamDescriptions(p => ({ ...p, cat_custom: e.target.value }))} />
                         </div>
                       </div>
                     )}
                   </div>
                 );
-              })}
-
-              {/* Añadir categoría personalizada */}
-              {addingCat ? (
-                <div className="flex gap-2 p-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/50">
-                  <Input
-                    autoFocus
-                    className="h-9 text-sm border-slate-200 bg-white"
-                    placeholder={t('custom_cat_placeholder')}
-                    value={newCatTitle}
-                    onChange={e => setNewCatTitle(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCategory(); } if (e.key === 'Escape') setAddingCat(false); }}
-                  />
-                  <button type="button" onClick={addCategory}
-                    className="px-3 py-2 bg-[#0F4C81] hover:bg-[#0a3a63] text-white text-xs font-bold rounded-xl transition-colors shrink-0">
-                    {t('custom_cat_create')}
-                  </button>
-                  <button type="button" onClick={() => { setAddingCat(false); setNewCatTitle(''); }}
-                    className="px-3 py-2 border border-slate-200 text-slate-500 text-xs font-medium rounded-xl hover:bg-slate-100 transition-colors shrink-0">
-                    {t('custom_cat_cancel')}
-                  </button>
-                </div>
-              ) : (
-                <button type="button" onClick={() => setAddingCat(true)}
-                  className="flex items-center gap-2 w-full px-4 py-3 border border-dashed border-slate-300 rounded-xl text-sm font-medium text-slate-500 hover:border-[#0F4C81]/40 hover:text-[#0F4C81] hover:bg-[#0F4C81]/3 transition-all">
-                  <PlusCircle size={16} />
-                  {t('custom_cat_add_btn')}
-                </button>
-              )}
+              })()}
             </div>
           </PanelCard>
         </div>
@@ -696,8 +653,8 @@ export const NewOrder: React.FC = () => {
                   <div className="space-y-1.5 max-h-52 overflow-y-auto">
                     {selectedExams.map(eid => {
                       const exam = exams.find(e => e.id === eid);
-                      const customExam = customCats.flatMap(c => c.exams).find(e => e.id === eid);
-                      const label = exam ? t(exam.name) : customExam?.name ?? eid;
+                      const customExam = customExamsCatalog.find(e => e.id === eid);
+                      const label = exam ? t(exam.name) : customExam?.name ?? legacyCustomExams[eid]?.name ?? eid;
                       return (
                         <div key={eid} className="flex items-start gap-2 group">
                           <div className="w-1.5 h-1.5 rounded-full bg-[#0F4C81] mt-1.5 shrink-0" />

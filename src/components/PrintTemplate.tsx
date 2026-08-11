@@ -2,72 +2,39 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import cerebroLogo from '../assets/cerebro.png';
+import type { Order } from '../types';
 
-export const PrintTemplate: React.FC = () => {
+const BLUE = '#0066CC';
+const GRAY = '#555555';
+const BLACK = '#000000';
+
+interface PrintExamEntry {
+  id: string;
+  name: string;
+  category: string;
+  categoryObs?: string;
+}
+
+interface PrintPageProps {
+  order: Order;
+  formattedDate: string;
+  entry: PrintExamEntry;
+  isLast: boolean;
+}
+
+const PrintPage: React.FC<PrintPageProps> = ({ order, formattedDate, entry, isLast }) => {
   const { t } = useTranslation();
-  const { selectedOrderForPrint, exams } = useApp();
-
-  if (!selectedOrderForPrint) return null;
-
-  const order = selectedOrderForPrint;
-
-  // Format date DD/MM/YYYY
-  const formattedDate = (() => {
-    try {
-      const [y, m, d] = order.date.split('-');
-      return `${d}/${m}/${y}`;
-    } catch {
-      return order.date;
-    }
-  })();
-
-  const customExamsMap = (order.customExams as Record<string, { id: string; name: string; category: string; categoryTitle?: string }>) || {};
-
-  // Group selected exams by category preserving selection order
-  const groupedExams: { category: string; categoryTitle?: string; items: { id: string; name: string; category: string }[] }[] = [];
-  const seen: string[] = [];
-
-  order.exams.forEach((examId) => {
-    let exam = exams.find(e => e.id === examId);
-    let categoryTitle = '';
-    
-    if (!exam && customExamsMap[examId]) {
-      const customInfo = customExamsMap[examId];
-      exam = {
-        id: examId,
-        name: customInfo.name,
-        category: customInfo.category,
-      };
-      categoryTitle = customInfo.categoryTitle || '';
-    }
-
-    if (!exam) return;
-
-    if (!seen.includes(exam.category)) {
-      seen.push(exam.category);
-      groupedExams.push({
-        category: exam.category,
-        categoryTitle: categoryTitle || undefined,
-        items: []
-      });
-    }
-    groupedExams.find(g => g.category === exam.category)!.items.push(exam);
-  });
-
-  const BLUE = '#0066CC';
-  const GRAY = '#555555';
-  const BLACK = '#000000';
 
   return (
     <div
-      className="print-area"
       style={{
-        display: 'none',
         fontFamily: 'Inter, Arial, sans-serif',
         backgroundColor: '#fff',
         color: BLACK,
         padding: '20mm 22mm',
         boxSizing: 'border-box',
+        pageBreakAfter: isLast ? 'auto' : 'always',
+        breakAfter: isLast ? 'auto' : 'page',
       }}
     >
 
@@ -127,86 +94,76 @@ export const PrintTemplate: React.FC = () => {
         )}
       </div>
 
-      {/* EXAMS LIST */}
+      {/* SINGLE EXAM FOR THIS PAGE */}
       <div style={{ marginBottom: '32px', minHeight: '300px' }}>
-        {groupedExams.map(({ category, items }) => {
-          const categoryObs = order.examDescriptions?.[category];
-          return (
-            <div key={category} style={{ marginBottom: '20px' }}>
-              {items.map((exam) => (
-                <div
-                  key={exam.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '12px',
-                    marginBottom: '10px',
-                  }}
-                >
-                  {/* Blue checkbox */}
-                  <div style={{
-                    flexShrink: 0,
-                    width: '18px',
-                    height: '18px',
-                    backgroundColor: BLUE,
-                    borderRadius: '3px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginTop: '2px',
-                  }}>
-                    <svg
-                      viewBox="0 0 10 10"
-                      style={{ width: '10px', height: '10px' }}
-                      fill="none"
-                      stroke="white"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="1.5,5.5 4,8 8.5,2" />
-                    </svg>
-                  </div>
-
-                  {/* Exam name */}
-                  <p style={{
-                    margin: 0,
-                    fontSize: '13px',
-                    color: BLACK,
-                    lineHeight: '1.5',
-                    flex: 1,
-                    fontWeight: 500,
-                  }}>
-                    {t(exam.name)}
-                  </p>
-                </div>
-              ))}
-
-              {/* Category observations indented */}
-              {categoryObs && categoryObs.trim() && (
-                <div style={{
-                  marginLeft: '30px',
-                  paddingLeft: '12px',
-                  borderLeft: `2.5px solid ${BLUE}`,
-                  marginTop: '6px',
-                  marginBottom: '12px',
-                }}>
-                  <p style={{
-                    margin: 0,
-                    fontSize: '11.5px',
-                    color: '#374151',
-                    fontStyle: 'italic',
-                    lineHeight: '1.45',
-                  }}>
-                    {categoryObs}
-                  </p>
-                </div>
-              )}
+        <div style={{ marginBottom: '20px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '12px',
+              marginBottom: '10px',
+            }}
+          >
+            {/* Blue checkbox */}
+            <div style={{
+              flexShrink: 0,
+              width: '18px',
+              height: '18px',
+              backgroundColor: BLUE,
+              borderRadius: '3px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginTop: '2px',
+            }}>
+              <svg
+                viewBox="0 0 10 10"
+                style={{ width: '10px', height: '10px' }}
+                fill="none"
+                stroke="white"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="1.5,5.5 4,8 8.5,2" />
+              </svg>
             </div>
-          );
-        })}
 
-        {/* General observations — now shown in patient block above */}
+            {/* Exam name */}
+            <p style={{
+              margin: 0,
+              fontSize: '13px',
+              color: BLACK,
+              lineHeight: '1.5',
+              flex: 1,
+              fontWeight: 500,
+            }}>
+              {t(entry.name)}
+            </p>
+          </div>
+
+          {/* Category observations indented */}
+          {entry.categoryObs && entry.categoryObs.trim() && (
+            <div style={{
+              marginLeft: '30px',
+              paddingLeft: '12px',
+              borderLeft: `2.5px solid ${BLUE}`,
+              marginTop: '6px',
+              marginBottom: '12px',
+            }}>
+              <p style={{
+                margin: 0,
+                fontSize: '11.5px',
+                color: '#374151',
+                fontStyle: 'italic',
+                lineHeight: '1.45',
+              }}>
+                {entry.categoryObs}
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* FOOTER DIVIDER */}
@@ -273,6 +230,71 @@ export const PrintTemplate: React.FC = () => {
         </div>
       </div>
 
+    </div>
+  );
+};
+
+export const PrintTemplate: React.FC = () => {
+  const { selectedOrderForPrint, exams } = useApp();
+
+  if (!selectedOrderForPrint) return null;
+
+  const order = selectedOrderForPrint;
+
+  // Format date DD/MM/YYYY
+  const formattedDate = (() => {
+    try {
+      const [y, m, d] = order.date.split('-');
+      return `${d}/${m}/${y}`;
+    } catch {
+      return order.date;
+    }
+  })();
+
+  const customExamsMap = (order.customExams as Record<string, { id: string; name: string; category: string; categoryTitle?: string }>) || {};
+
+  // One entry per individually requested exam — each prints on its own page.
+  const examEntries: PrintExamEntry[] = [];
+
+  order.exams.forEach((examId) => {
+    let exam = exams.find(e => e.id === examId);
+
+    if (!exam && customExamsMap[examId]) {
+      const customInfo = customExamsMap[examId];
+      exam = {
+        id: examId,
+        name: customInfo.name,
+        category: customInfo.category,
+      };
+    }
+
+    if (!exam) return;
+
+    examEntries.push({
+      id: exam.id,
+      name: exam.name,
+      category: exam.category,
+      categoryObs: order.examDescriptions?.[exam.category],
+    });
+  });
+
+  return (
+    <div
+      className="print-area print-area-order"
+      style={{
+        display: 'none',
+        backgroundColor: '#fff',
+      }}
+    >
+      {examEntries.map((entry, idx) => (
+        <PrintPage
+          key={`${entry.id}-${idx}`}
+          order={order}
+          formattedDate={formattedDate}
+          entry={entry}
+          isLast={idx === examEntries.length - 1}
+        />
+      ))}
     </div>
   );
 };

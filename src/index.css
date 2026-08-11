@@ -119,6 +119,12 @@
   @page { margin: 0; size: A4; }
   html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
   #root { display: none !important; }
-  .print-area { display: block !important; position: fixed !important; inset: 0 !important; background: white !important; z-index: 99999 !important; }
+  .print-area { display: none !important; }
+  body.print-order .print-area-order,
+  body.print-receta .print-area-receta,
+  body.print-encaminhamento .print-area-encaminhamento {
+    display: block !important; position: static !important; background: white !important;
+  }
+  .print-area > div { break-inside: avoid; }
   .no-print { display: none !important; }
 }
