@@ -1,33 +1,83 @@
-# NeuroExamenes — Apache rewrite rules
+# NeuroExamenes - Apache rewrite rules (backend PHP)
 
 Options -Indexes
 DirectorySlash Off
+ServerSignature Off
 RewriteEngine On
 
-# ── HTTPS redirect (activar solo en producción con SSL) ───────────────────
-# Descomentar estas líneas cuando el servidor tenga certificado SSL:
-# RewriteCond %{HTTPS} off
-# RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# ------------------------------------------------------------------
+# HTTPS redirect (solo fuera de localhost; tolera proxies/CDN)
+# ------------------------------------------------------------------
+<IfModule mod_rewrite.c>
+    RewriteCond %{HTTPS} off
+    RewriteCond %{HTTP:X-Forwarded-Proto} !https
+    RewriteCond %{HTTP_HOST} !^localhost [NC]
+    RewriteCond %{HTTP_HOST} !^127\.0\.0\.1 [NC]
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
 
-# ── Security headers ──────────────────────────────────────────────────────
-Header always set X-Content-Type-Options "nosniff"
-Header always set X-Frame-Options "DENY"
-Header always set X-XSS-Protection "1; mode=block"
-Header always set Referrer-Policy "strict-origin-when-cross-origin"
+# ------------------------------------------------------------------
+# Security headers
+# ------------------------------------------------------------------
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    Header always set Cross-Origin-Opener-Policy "same-origin"
+    Header always unset X-Powered-By
+    # HSTS solo cuando la conexión ya es HTTPS
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" "expr=%{HTTPS} == 'on'"
+</IfModule>
 
-# ── Ocultar versión de PHP ─────────────────────────────────────────────────
-Header unset X-Powered-By
+# ------------------------------------------------------------------
+# No exponer errores ni versión de PHP (fallback si el host no permite ini_set)
+# Se cubren los nombres de módulo más comunes (XAMPP, Apache mod_php, LiteSpeed)
+# ------------------------------------------------------------------
+<IfModule php_module>
+    php_flag display_errors Off
+    php_flag log_errors On
+    php_flag expose_php Off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag display_errors Off
+    php_flag log_errors On
+    php_flag expose_php Off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag display_errors Off
+    php_flag log_errors On
+    php_flag expose_php Off
+</IfModule>
+<IfModule lsapi_module>
+    php_flag display_errors Off
+    php_flag log_errors On
+    php_flag expose_php Off
+</IfModule>
 
-# ── Bloquear acceso web directo a archivos sensibles ──────────────────────
-<FilesMatch "(^\.env|\.sql|\.example)$">
-    Order allow,deny
-    Deny from all
+# ------------------------------------------------------------------
+# Bloques de acceso directo a archivos sensibles
+# (config/, sql/ y setup/ tienen su propio .htaccess con Deny)
+# ------------------------------------------------------------------
+<FilesMatch "(^\.env|\.env\.|\.sql$|\.example$|\.bak$|\.log$|\.zip$|\.tar$|\.gz$|\.inc$|\.pem$|\.key$|debug\.php$)">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
 </FilesMatch>
 
-# ── CRÍTICO: pasar el header Authorization a PHP (XAMPP lo bloquea por defecto)
+# ------------------------------------------------------------------
+# CRITICO: pasar el header Authorization a PHP (XAMPP/cieratos hosts lo bloquean)
+# ------------------------------------------------------------------
 RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
-# ── Enrutar todas las peticiones a index.php ──────────────────────────────
+# ------------------------------------------------------------------
+# Enrutar TODAS las peticiones que no sean archivos reales a index.php.
+# NOTA: se excluye solo !-f (no !-d): los endpoints como /api/receta-clinics
+# o /api/exams coinciden con directorios físicos y deben ir al router.
+# ------------------------------------------------------------------
 RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.php [QSA,L]

@@ -54,6 +54,20 @@ En **phpMyAdmin**:
 - Crear un usuario MySQL con todos los permisos sobre esa DB
 - Importar `sql/schema.sql` (crea tablas + seed de exámenes)
 
+### 1b. Aplicar migraciones complementarias (en orden)
+Si la base ya tiene las tablas creadas por `sql/migration_*.sql` anterior
+(no por `schema.sql`), ejecutar las siguientes para habilitar clínicas de
+Atestados y Recetas. Son idempotentes (se pueden correr varias veces).
+
+```bash
+mysql --default-character-set=utf8mb4 -u USUARIO -p neuroexamenes < sql/migration_atestado_clinic.sql
+mysql --default-character-set=utf8mb4 -u USUARIO -p neuroexamenes < sql/migration_receta_clinic_doutor.sql
+```
+
+> La primera (`migration_atestado_clinic.sql`) es **obligatoria** para que la
+> clínica seleccionada en un Atestado se guarde en la BD e imprima
+> (`clinic_name`, `clinic_secretaria`, ... en la tabla `atestados`).
+
 ### 2. Subir los archivos PHP
 Subir todo el contenido de `server-php/` a una carpeta en el hosting,
 por ejemplo:
@@ -72,10 +86,18 @@ DB_PASS=tu_password_mysql
 JWT_SECRET=cambia_esto_por_un_secreto_seguro
 ```
 
-### 4. Descargar FPDF
-- Ir a http://www.fpdf.org/
-- Descargar fpdf186.zip
-- Colocar `fpdf.php` en `lib/fpdf/fpdf.php`
+### 4. FPDF (solo para descarga de PDF de Pedidos)
+El archivo `lib/fpdf/fpdf.php` está **incluido en este repositorio** (FPDF 1.9,
+repositorio oficial Setasign). Solo verificar que se suba al hosting junto con
+el resto del backend:
+
+```
+public_html/api/lib/fpdf/fpdf.php
+```
+
+Si por política no se sube la carpeta `lib/`, el endpoint
+`GET /api/orders/{id}/pdf` devolverá un error. Descarga manual alternativa:
+http://www.fpdf.org/ (versión 1.86+) y colocar `fpdf.php` en esa carpeta.
 
 ### 5. Crear usuario médico titular
 Abrir en el navegador (una sola vez):

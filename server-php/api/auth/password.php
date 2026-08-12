@@ -24,9 +24,9 @@ if (!$currentPassword || !$newPassword) {
     exit;
 }
 
-if (strlen($newPassword) < 6) {
+if (strlen($newPassword) < 8) {
     http_response_code(400);
-    echo json_encode(['error' => 'La nueva contraseña debe tener al menos 6 caracteres.']);
+    echo json_encode(['error' => 'La nueva contraseña debe tener al menos 8 caracteres.']);
     exit;
 }
 

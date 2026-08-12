@@ -111,7 +111,8 @@ INSERT IGNORE INTO clinics (name) VALUES
   ('CLINICA SÃO LUIZ'),
   ('CLINICA EU SOU LUZ'),
   ('CLINICA HUMANAR'),
-  ('MED CENTER GUAIANASES');
+  ('MED CENTER GUAIANASES'),
+  ('DOUTOR CLINICA E LABORATÓRIO');
 
 -- --------------------------------------------------------
 -- Tabla: receta_clinics  (clínicas con perfil completo — exclusivas de
@@ -152,7 +153,9 @@ INSERT INTO receta_clinics (name, secretaria, sistema, address, phone, cnpj) VAL
   ('CLINICA DOC SAUDE', NULL, NULL,
    'AVENIDA PAULO FERREIRA, 2578 - SÃO PAULO- SP - PIRITUBA - CEP 02916-000', '1148585536', NULL),
   ('CLINICA EU SOU LUZ', NULL, NULL,
-   'PRAÇA NIPPON, 105 - JARDIM JAPÃO', '(11) 3164-3894', NULL)
+   'PRAÇA NIPPON, 105 - JARDIM JAPÃO', '(11) 3164-3894', NULL),
+  ('DOUTOR CLINICA E LABORATÓRIO', NULL, NULL,
+   'Av. Papa João Paulo I, 3086 - Jardim Pres. Dutra, Guarulhos/SP - CEP: 07174-000', '11 98958 0281 | 11 94772 5760', NULL)
 ON DUPLICATE KEY UPDATE
   secretaria = VALUES(secretaria),
   sistema    = VALUES(sistema),

@@ -1,4 +1,9 @@
-# Bloquear acceso web directo a los scripts de setup.
-# Solo pueden ejecutarse desde CLI: php setup/seed.php
-Order deny,allow
-Deny from all
+# Bloquear TODO acceso web al directorio setup/ (seed.php, reset_data.php)
+# Estos scripts solo deben ejecutarse por CLI o vía SSH.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

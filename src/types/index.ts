@@ -106,6 +106,13 @@ export interface Atestado {
   patientBirthDate?: string;
   /** Endereço completo del paciente. */
   patientAddress?: string;
+  /** Clínica / emisor del documento — snapshot al guardar (igual que en Recetas). */
+  clinicName?: string;
+  clinicSecretaria?: string;
+  clinicSistema?: string;
+  clinicAddress?: string;
+  clinicPhone?: string;
+  clinicCnpj?: string;
   /** Emissão — fecha y hora del documento (ej: 23/07/2026 - 10:51:28). */
   issuedAt?: string;
   /** Token de validación (ej: MMOP4TW). */

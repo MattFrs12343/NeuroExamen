@@ -5,7 +5,7 @@ import type { Atestado } from '../types';
 import {
   PlusCircle, Search, Calendar, Filter, RefreshCw,
   Edit3, Printer, X, FileCheck, User,
-  ChevronLeft, ChevronRight, Activity, Eye, Trash2,
+  ChevronLeft, ChevronRight, Activity, Eye, Trash2, Building2,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -319,6 +319,16 @@ export const AtestadosList: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {selectedAtest.clinicName && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Building2 size={14} className="text-[#06B6D4]" />
+                    <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('print_clinic_label')}</p>
+                  </div>
+                  <p className="text-sm text-slate-700">{selectedAtest.clinicName}</p>
+                </div>
+              )}
 
               {selectedAtest.cid && (
                 <div className="rounded-xl border border-slate-200 p-5">

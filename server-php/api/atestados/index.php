@@ -24,6 +24,12 @@ function formatAtestado(array $row): array {
         'patientIdentityCard'     => $row['patient_identity_card'],
         'patientBirthDate'        => $row['patient_birth_date'] ?: null,
         'patientAddress'          => $row['patient_address']    ?: null,
+        'clinicName'              => $row['clinic_name']        ?: null,
+        'clinicSecretaria'        => $row['clinic_secretaria']  ?: null,
+        'clinicSistema'           => $row['clinic_sistema']     ?: null,
+        'clinicAddress'           => $row['clinic_address']     ?: null,
+        'clinicPhone'             => $row['clinic_phone']       ?: null,
+        'clinicCnpj'              => $row['clinic_cnpj']        ?: null,
         'issuedAt'                => $row['issued_at']          ?: null,
         'token'                   => $row['token']              ?: null,
         'accessCode'              => $row['access_code']        ?: null,
@@ -47,7 +53,9 @@ function formatAtestado(array $row): array {
 // Helper: pick only the allowed fields from the body (avoids column injection)
 function atestadoPayload(array $body): array {
     $keys = [
-        'patientId', 'patientBirthDate', 'patientAddress', 'issuedAt', 'token',
+        'patientId', 'patientBirthDate', 'patientAddress', 'clinicName',
+        'clinicSecretaria', 'clinicSistema', 'clinicAddress', 'clinicPhone',
+        'clinicCnpj', 'issuedAt', 'token',
         'accessCode', 'validationUrl', 'qrContent', 'cid', 'careStartTime',
         'careEndTime', 'careDate', 'restDays', 'observation', 'doctorName',
         'doctorCrm', 'doctorAddress', 'signedAt', 'digitalPrescriptionUrl',
@@ -132,8 +140,9 @@ if ($method === 'POST') {
                 patient_birth_date, patient_address, issued_at, token, access_code,
                 validation_url, qr_content, cid, care_start_time, care_end_time,
                 care_date, rest_days, observation, doctor_name, doctor_crm,
-                doctor_address, signed_at, digital_prescription_url
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                doctor_address, signed_at, digital_prescription_url,
+                clinic_name, clinic_secretaria, clinic_sistema, clinic_address, clinic_phone, clinic_cnpj
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $newId, $patientId, $userId,
@@ -143,6 +152,8 @@ if ($method === 'POST') {
             $payload['careEndTime'], $payload['careDate'], $payload['restDays'],
             $payload['observation'], $payload['doctorName'], $payload['doctorCrm'],
             $payload['doctorAddress'], $payload['signedAt'], $payload['digitalPrescriptionUrl'],
+            $payload['clinicName'], $payload['clinicSecretaria'], $payload['clinicSistema'],
+            $payload['clinicAddress'], $payload['clinicPhone'], $payload['clinicCnpj'],
         ]);
 
         $pdo->commit();
@@ -180,7 +191,8 @@ if ($method === 'PUT' && $atestadoId) {
             patient_birth_date=?, patient_address=?, issued_at=?, token=?, access_code=?,
             validation_url=?, qr_content=?, cid=?, care_start_time=?, care_end_time=?,
             care_date=?, rest_days=?, observation=?, doctor_name=?, doctor_crm=?,
-            doctor_address=?, signed_at=?, digital_prescription_url=?
+            doctor_address=?, signed_at=?, digital_prescription_url=?,
+            clinic_name=?, clinic_secretaria=?, clinic_sistema=?, clinic_address=?, clinic_phone=?, clinic_cnpj=?
          WHERE id=?'
     );
     $stmt->execute([
@@ -190,6 +202,8 @@ if ($method === 'PUT' && $atestadoId) {
         $payload['careEndTime'], $payload['careDate'], $payload['restDays'],
         $payload['observation'], $payload['doctorName'], $payload['doctorCrm'],
         $payload['doctorAddress'], $payload['signedAt'], $payload['digitalPrescriptionUrl'],
+        $payload['clinicName'], $payload['clinicSecretaria'], $payload['clinicSistema'],
+        $payload['clinicAddress'], $payload['clinicPhone'], $payload['clinicCnpj'],
         $atestadoId,
     ]);
 

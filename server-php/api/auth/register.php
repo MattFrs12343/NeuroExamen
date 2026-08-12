@@ -12,6 +12,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+// Registro abierto deshabilitado por defecto en producción.
+// Activar SOLO si realmente se necesitan cuentas múltiples:
+//   ALLOW_REGISTRATION=true en server-php/.env
+if (($_ENV['ALLOW_REGISTRATION'] ?? 'false') !== 'true') {
+    http_response_code(403);
+    echo json_encode(['error' => 'El registro está deshabilitado en este servidor.']);
+    exit;
+}
+
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
 $name        = trim($body['name']        ?? '');
@@ -53,7 +62,12 @@ $stmt = $pdo->prepare(
 );
 $stmt->execute([$id, $name, $email, $passwordHash, $specialty, $crmLicense, $rqeSpecialty, $now]);
 
-$secret  = $_ENV['JWT_SECRET'] ?? 'neuro-secret-key-2026';
+$secret = $_ENV['JWT_SECRET'] ?? null;
+if (!$secret || strlen($secret) < 32) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Configuración del servidor incorrecta.']);
+    exit;
+}
 $payload = ['userId' => $id, 'exp' => time() + 8 * 3600];
 $token   = generateJWT($payload, $secret);
 

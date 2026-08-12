@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { DOCTOR_NAME, DOCTOR_CRM, DOCTOR_ADDRESS } from '../lib/doctor';
+import { findClinicProfile } from '../lib/clinic';
 
 // ── Paleta del documento de referencia ───────────────────────────────────────
 // Negro/blanco puros con grises bajos: estética limpia y minimalista.
@@ -18,15 +19,34 @@ const InfoItem: React.FC<{ label: string; value?: string }> = ({ label, value })
 );
 
 export const PrintAtestadoTemplate: React.FC = () => {
-  const { selectedAtestadoForPrint } = useApp();
+  const { selectedAtestadoForPrint, clinicProfiles } = useApp();
+
+  // Fallback al perfil actual de la clínica: si el atestado se guardó con un
+  // nombre que no tenía perfil (o antes de que existiera), recuperamos en la
+  // impresión la secretaría/sistema/dirección/teléfono/CNPJ cuando haya match.
+  // Debe llamarse siempre (antes de cualquier return) para no violar las
+  // Rules of Hooks — un useMemo condicional causaba "Rendered more hooks
+  // than during the previous render" y tumbaba toda la app al imprimir.
+  const profile = useMemo(
+    () => findClinicProfile(clinicProfiles, selectedAtestadoForPrint?.clinicName),
+    [clinicProfiles, selectedAtestadoForPrint]
+  );
 
   if (!selectedAtestadoForPrint) return null;
   const a = selectedAtestadoForPrint;
+
+  const clinicSecretaria = a.clinicSecretaria || profile?.secretaria;
+  const clinicSistema    = a.clinicSistema    || profile?.sistema;
+  const clinicAddress    = a.clinicAddress    || profile?.address;
+  const clinicPhone      = a.clinicPhone      || profile?.phone;
+  const clinicCnpj       = a.clinicCnpj       || profile?.cnpj;
 
   const issuedAt     = a.issuedAt || a.signedAt || '';
   const period       = [a.careStartTime, a.careEndTime].filter(Boolean).join(' às ');
   const careDate     = a.careDate || '';
   const restDays     = a.restDays || '';
+
+  const hasClinic = !!(a.clinicName || clinicSecretaria || clinicSistema || clinicAddress || clinicPhone || clinicCnpj);
 
   return (
     <div className="print-area print-area-atestado" style={{ display: 'none', backgroundColor: '#fff' }}>
@@ -41,7 +61,36 @@ export const PrintAtestadoTemplate: React.FC = () => {
         flexDirection: 'column',
       }}>
 
-        {/* ══ 1. ENCABEZADO — paciente ════════════════════════════════════ */}
+        {/* ══ 1. EMISOR — CLÍNICA ════════════════════════════════════════ */}
+        {hasClinic && (
+          <div style={{ marginBottom: '20px', paddingBottom: '18px', borderBottom: `1px solid ${LINE}` }}>
+            <p style={{ margin: 0, fontSize: '9px', fontWeight: 700, color: FAINT, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              Identificação do Emissor
+            </p>
+            {a.clinicName && (
+              <p style={{ margin: '4px 0 0 0', fontSize: '15px', fontWeight: 800, color: INK, letterSpacing: '0.01em' }}>
+                {(a.clinicName || '').toUpperCase()}
+              </p>
+            )}
+            {(clinicSecretaria || clinicSistema) && (
+              <p style={{ margin: '2px 0 0 0', fontSize: '12px', fontWeight: 600, color: MUTED }}>
+                {[clinicSecretaria, clinicSistema].filter(Boolean).join(' — ')}
+              </p>
+            )}
+            {clinicAddress && (
+              <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: MUTED, lineHeight: 1.4, whiteSpace: 'pre-line' }}>
+                {clinicAddress}
+              </p>
+            )}
+            {(clinicPhone || clinicCnpj) && (
+              <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: MUTED }}>
+                {[clinicPhone ? `Tel: ${clinicPhone}` : '', clinicCnpj ? `CNPJ: ${clinicCnpj}` : ''].filter(Boolean).join(' · ')}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* ══ 2. ENCABEZADO — paciente ════════════════════════════════════ */}
         <div>
           <p style={{ margin: 0, fontSize: '9px', fontWeight: 700, color: FAINT, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
             Paciente
@@ -67,17 +116,17 @@ export const PrintAtestadoTemplate: React.FC = () => {
           )}
         </div>
 
-        {/* ══ 2. LÍNEA DIVISORIA ════════════════════════════════════════════ */}
+        {/* ══ 3. LÍNEA DIVISORIA ════════════════════════════════════════════ */}
         <div style={{ marginTop: '22px', height: '1px', backgroundColor: LINE }} />
 
-        {/* ══ 3. TÍTULO ═════════════════════════════════════════════════════ */}
+        {/* ══ 4. TÍTULO ═════════════════════════════════════════════════════ */}
         <div style={{ textAlign: 'center', marginTop: '26px' }}>
           <span style={{ fontSize: '22px', fontWeight: 800, color: INK, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
             Atestado Médico
           </span>
         </div>
 
-        {/* ══ 4. CONTENIDO MÉDICO ═══════════════════════════════════════════ */}
+        {/* ══ 5. CONTENIDO MÉDICO ═══════════════════════════════════════════ */}
         <div style={{ marginTop: '28px' }}>
           <p style={{ margin: 0, fontSize: '15px', color: INK }}>
             <span style={{ fontWeight: 700 }}>CID:</span>{' '}
@@ -95,7 +144,7 @@ export const PrintAtestadoTemplate: React.FC = () => {
           </p>
         </div>
 
-        {/* ══ 5. OBSERVACIÓN ═══════════════════════════════════════════════ */}
+        {/* ══ 6. OBSERVACIÓN ═══════════════════════════════════════════════ */}
         {a.observation && (
           <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: `1px solid ${LINE}` }}>
             <p style={{ margin: 0, fontSize: '15px', color: INK, lineHeight: 1.7, textAlign: 'justify' }}>
@@ -104,10 +153,10 @@ export const PrintAtestadoTemplate: React.FC = () => {
           </div>
         )}
 
-        {/* ══ 6. ESPACIO BLANCO CENTRAL ═════════════════════════════════════ */}
+        {/* ══ 7. ESPACIO BLANCO CENTRAL ═════════════════════════════════════ */}
         <div style={{ flex: 1 }} />
 
-        {/* ══ 7. PIE DE PÁGINA ═════════════════════════════════════════════ */}
+        {/* ══ 8. PIE DE PÁGINA ═════════════════════════════════════════════ */}
         <div style={{ borderTop: `1px solid ${LINE}`, paddingTop: '18px' }}>
           <p style={{ margin: 0, textAlign: 'center', fontSize: '14px', fontWeight: 700, color: INK, lineHeight: 1.5 }}>
             {DOCTOR_NAME}

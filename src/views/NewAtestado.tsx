@@ -5,11 +5,12 @@ import type { Atestado } from '../types';
 import {
   User, Search, Calendar, Check, ArrowLeft, X,
   ClipboardList, CheckCircle2,
-  FileCheck, Clock, Save,
+  FileCheck, Clock, Save, Building2,
 } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { cn, getErrorMessage, hasIdentity } from '../lib/utils';
 import { DOCTOR_NAME, DOCTOR_CRM, DOCTOR_ADDRESS } from '../lib/doctor';
+import { findClinicProfile } from '../lib/clinic';
 
 interface CidEntry { codigo: string; descripcion: string; }
 
@@ -80,9 +81,13 @@ export const NewAtestado: React.FC = () => {
     patients, addPatient,
     setCurrentView, activeAtestadoForEdit, setActiveAtestadoForEdit,
     triggerDirectPrintAtestado, addAtestado, updateAtestado,
+    clinicProfiles, lastClinicName, setLastClinicName,
   } = useApp();
 
   const isEdit = !!activeAtestadoForEdit;
+
+  // ── Dados do Emitente ───────────────────────────────────────────────
+  const [clinicName, setClinicName] = useState(lastClinicName); // Prefeitura
 
   const [patientId,   setPatientId]   = useState('');
   const [patQuery,    setPatQuery]    = useState('');
@@ -123,6 +128,40 @@ export const NewAtestado: React.FC = () => {
     const q = patQuery.toLowerCase();
     return patients.filter(p => p.name.toLowerCase().includes(q) || (p.identityCard || '').includes(q));
   }, [patients, patQuery]);
+
+  // Solo las clínicas con perfil cargado son seleccionables (igual que en Recetas).
+  const clinicOptions = useMemo(
+    () => clinicProfiles.filter(c => c.secretaria || c.sistema || c.address || c.phone || c.cnpj),
+    [clinicProfiles]
+  );
+
+  // Derivados en vivo del perfil de la clínica seleccionada — nunca quedan
+  // desincronizados de `clinicName`. El match usa una clave normalizada (sin
+  // acentos/espacios/símbolos) para que el bloque "Dados que serão impressos"
+  // y la impresión no queden vacíos.
+  const selectedClinicProfile = useMemo(
+    () => findClinicProfile(clinicProfiles, clinicName),
+    [clinicName, clinicProfiles]
+  );
+  const clinicSecretaria = selectedClinicProfile?.secretaria || '';
+  const clinicSistema    = selectedClinicProfile?.sistema    || '';
+  const clinicAddress    = selectedClinicProfile?.address    || '';
+  const clinicPhone      = selectedClinicProfile?.phone      || '';
+  const clinicCnpj       = selectedClinicProfile?.cnpj       || '';
+
+  // `lastClinicName` es compartido con Pedidos/Encaminhamentos/Recetas (texto
+  // libre), así que puede traer un nombre que no existe en `receta_clinics`.
+  // Para un atestado NUEVO, si no hay perfil que respalde ese nombre, lo
+  // descartamos para no guardar una clínica sin datos ni mostrar preview vacío.
+  // Ajuste hecho durante el render (no en un efecto): clinicName solo cambia
+  // por acciones puntuales, nunca tecla a tecla, así que no hay riesgo de loop.
+  if (!isEdit && clinicProfiles.length && clinicName && !selectedClinicProfile) {
+    setClinicName('');
+  }
+
+  const handleSelectClinic = (name: string) => {
+    setClinicName(name); setLastClinicName(name);
+  };
 
   // CID-10 autocomplete (shared with Pedidos)
   const [cidList, setCidList] = useState<CidEntry[]>([]);
@@ -178,6 +217,7 @@ export const NewAtestado: React.FC = () => {
       setPatCpf(activeAtestadoForEdit.patientIdentityCard || '');
       setPatBirth(activeAtestadoForEdit.patientBirthDate || '');
       setPatAddress(activeAtestadoForEdit.patientAddress || '');
+      setClinicName(activeAtestadoForEdit.clinicName || '');
       setIssuedAt(activeAtestadoForEdit.issuedAt || '');
       setCid(activeAtestadoForEdit.cid || '');
       setCareStart(activeAtestadoForEdit.careStartTime || '');
@@ -223,6 +263,12 @@ export const NewAtestado: React.FC = () => {
       patientIdentityCard: patCpf.trim(),
       patientBirthDate: patBirth.trim() || undefined,
       patientAddress: patAddress.trim() || undefined,
+      clinicName: clinicName.trim() || undefined,
+      clinicSecretaria: clinicSecretaria.trim() || undefined,
+      clinicSistema: clinicSistema.trim() || undefined,
+      clinicAddress: clinicAddress.trim() || undefined,
+      clinicPhone: clinicPhone.trim() || undefined,
+      clinicCnpj: clinicCnpj.trim() || undefined,
       issuedAt: issuedAt.trim() || undefined,
       cid: cid.trim() || undefined,
       careStartTime: careStart.trim() || undefined,
@@ -254,6 +300,7 @@ export const NewAtestado: React.FC = () => {
 
   const handleClear = () => {
     setPatientId(''); setPatQuery(''); setPatCpf(''); setPatBirth(''); setPatAddress('');
+    setClinicName('');
     setCid(''); setCareStart(''); setCareEnd(''); setRestDays(''); setObservation('');
   };
 
@@ -283,7 +330,43 @@ export const NewAtestado: React.FC = () => {
         {/* ── Columna izquierda (2/3) ──────────────────────────────────── */}
         <div className="lg:col-span-2 space-y-5">
 
-          {/* ── Bloque 1: Datos del Paciente ───────────────────────────── */}
+          {/* ── Bloque 1: Dados do Emitente ────────────────────────────── */}
+          <PanelCard>
+            <PanelCardHead icon={Building2} title={t('receta_sec_emitter')} />
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  {t('receta_emitter_prefeitura')} <span className="text-slate-400 font-normal">({t('optional')})</span>
+                </label>
+                <div className="relative">
+                  <Building2 size={16} strokeWidth={1.75} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 z-10 pointer-events-none" />
+                  <select
+                    value={clinicName}
+                    onChange={e => handleSelectClinic(e.target.value)}
+                    className="flex h-11 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0F4C81]/20 focus:border-[#0F4C81]/50 focus:bg-white cursor-pointer transition-all"
+                  >
+                    <option value="">{t('receta_clinic_select_placeholder')}</option>
+                    {clinicOptions.map(c => (
+                      <option key={c.name} value={c.name}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {clinicName && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 text-xs text-slate-600 space-y-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t('receta_clinic_preview_title')}</p>
+                  {clinicSecretaria && <p>{clinicSecretaria}</p>}
+                  {clinicSistema && <p>{clinicSistema}</p>}
+                  {clinicAddress && <p className="whitespace-pre-line">{clinicAddress}</p>}
+                  {clinicPhone && <p className="whitespace-pre-line"><strong className="font-semibold text-slate-700">Tel:</strong> {clinicPhone}</p>}
+                  {clinicCnpj && <p><strong className="font-semibold text-slate-700">CNPJ:</strong> {clinicCnpj}</p>}
+                </div>
+              )}
+            </div>
+          </PanelCard>
+
+          {/* ── Bloque 2: Datos del Paciente ───────────────────────────── */}
           <PanelCard>
             <PanelCardHead icon={User} title={t('receta_sec_patient')} />
             <div className="p-6 space-y-5">
@@ -481,6 +564,13 @@ export const NewAtestado: React.FC = () => {
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t('print_cid')}</p>
                 <p className="text-sm font-semibold text-slate-900">{cid || '—'}</p>
               </div>
+
+              {clinicName && (
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t('print_clinic_label')}</p>
+                  <p className="text-sm font-semibold text-slate-900">{clinicName}</p>
+                </div>
+              )}
 
               <div>
                 <div className="flex items-center justify-between mb-2">
