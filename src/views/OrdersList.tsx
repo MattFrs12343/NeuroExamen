@@ -11,7 +11,7 @@ import {
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
-import { cn } from '../lib/utils';
+import { cn, getErrorMessage, hasIdentity } from '../lib/utils';
 
 const PAGE_SIZE = 15;
 const API = (import.meta.env.VITE_API_URL as string) || 'http://localhost/neuro-api/api';
@@ -52,7 +52,7 @@ export const OrdersList: React.FC = () => {
   const filtered = useMemo(() => orders.filter(o => {
     if (appliedPatient.trim()) {
       const q = appliedPatient.toLowerCase();
-      if (!o.patientName.toLowerCase().includes(q) && !o.patientIdentityCard.includes(q)) return false;
+      if (!o.patientName.toLowerCase().includes(q) && !(o.patientIdentityCard || '').includes(q)) return false;
     }
     if (appliedStatus !== 'Todos' && o.status !== appliedStatus) return false;
     if (appliedStart && o.date < appliedStart) return false;
@@ -87,7 +87,7 @@ export const OrdersList: React.FC = () => {
     try {
       await deleteOrder(id);
       if (selectedOrder?.id === id) setSelectedOrder(null);
-    } catch (err: any) { alert('Error: ' + err.message); }
+    } catch (err) { alert('Error: ' + getErrorMessage(err)); }
   };
 
   const handlePdf = async (orderId: string, e?: React.MouseEvent) => {
@@ -102,7 +102,7 @@ export const OrdersList: React.FC = () => {
       const a    = document.createElement('a');
       a.href = url; a.download = `pedido_${orderId}.pdf`; a.click();
       URL.revokeObjectURL(url);
-    } catch (err: any) { alert('Error PDF: ' + err.message); }
+    } catch (err) { alert('Error PDF: ' + getErrorMessage(err)); }
   };
 
   const getInitials = (name: string) =>
@@ -221,7 +221,7 @@ export const OrdersList: React.FC = () => {
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-slate-900">{order.patientName}</p>
-                          <p className="text-xs text-slate-400">DNI: {order.patientIdentityCard}</p>
+                          <p className="text-xs text-slate-400">{hasIdentity(order.patientIdentityCard) ? `DNI: ${order.patientIdentityCard}` : ''}</p>
                         </div>
                       </div>
                     </td>
@@ -398,7 +398,9 @@ export const OrdersList: React.FC = () => {
                   <div>
                     <p className="text-base font-bold text-slate-900">{selectedOrder.patientName}</p>
                     <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
-                      <span>DNI: <span className="font-semibold text-slate-700">{selectedOrder.patientIdentityCard}</span></span>
+                      {hasIdentity(selectedOrder.patientIdentityCard) && (
+                        <span>DNI: <span className="font-semibold text-slate-700">{selectedOrder.patientIdentityCard}</span></span>
+                      )}
                       <span className="text-slate-300">·</span>
                       <span>{selectedOrder.date}</span>
                     </div>
@@ -466,7 +468,7 @@ export const OrdersList: React.FC = () => {
             </div>
 
             {/* Drawer footer */}
-            <div className="p-4 border-t border-slate-100 bg-slate-50/60 grid grid-cols-4 gap-2">
+            <div className="p-4 border-t border-slate-100 bg-slate-50/60 grid grid-cols-2 sm:grid-cols-4 gap-2">
               <Button variant="outline" size="sm"
                 onClick={() => { triggerDirectPrint(selectedOrder); setSelectedOrder(null); }}>
                 <Printer size={14} /> {t('print')}

@@ -7,6 +7,7 @@ import { Dashboard } from './views/Dashboard';
 import { PrintTemplate } from './components/PrintTemplate';
 import { PrintRecetaTemplate } from './components/PrintRecetaTemplate';
 import { PrintEncaminhamentoTemplate } from './components/PrintEncaminhamentoTemplate';
+import { PrintAtestadoTemplate } from './components/PrintAtestadoTemplate';
 import { PrintSelectionModal } from './components/PrintSelectionModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import './App.css';
@@ -22,6 +23,8 @@ const RecetasList          = lazy(() => import('./views/RecetasList').then(m => 
 const NewReceta            = lazy(() => import('./views/NewReceta').then(m => ({ default: m.NewReceta })));
 const EncaminhamentosList  = lazy(() => import('./views/EncaminhamentosList').then(m => ({ default: m.EncaminhamentosList })));
 const NewEncaminhamento    = lazy(() => import('./views/NewEncaminhamento').then(m => ({ default: m.NewEncaminhamento })));
+const AtestadosList        = lazy(() => import('./views/AtestadosList').then(m => ({ default: m.AtestadosList })));
+const NewAtestado          = lazy(() => import('./views/NewAtestado').then(m => ({ default: m.NewAtestado })));
 
 const ViewLoading = () => (
   <div className="flex items-center justify-center py-24 no-print">
@@ -52,6 +55,8 @@ const AppContent: React.FC = () => {
       case 'new-receta': return <NewReceta />;
       case 'encaminhamentos':     return <EncaminhamentosList />;
       case 'new-encaminhamento':  return <NewEncaminhamento />;
+      case 'atestados':           return <AtestadosList />;
+      case 'new-atestado':        return <NewAtestado />;
       default:          return <Dashboard />;
     }
   };
@@ -71,6 +76,7 @@ const AppContent: React.FC = () => {
       {createPortal(<ErrorBoundary><PrintTemplate /></ErrorBoundary>, document.body)}
       {createPortal(<ErrorBoundary><PrintRecetaTemplate /></ErrorBoundary>, document.body)}
       {createPortal(<ErrorBoundary><PrintEncaminhamentoTemplate /></ErrorBoundary>, document.body)}
+      {createPortal(<ErrorBoundary><PrintAtestadoTemplate /></ErrorBoundary>, document.body)}
       {createPortal(<ErrorBoundary><PrintSelectionModal /></ErrorBoundary>, document.body)}
     </>
   );

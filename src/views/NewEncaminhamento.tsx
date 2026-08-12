@@ -9,7 +9,8 @@ import {
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { ClinicField } from '../components/ClinicField';
-import { cn } from '../lib/utils';
+import { encUi } from '../data/encaminhamentoProfiles';
+import { cn, getErrorMessage, hasIdentity } from '../lib/utils';
 
 const PanelCard = ({ children, className }: { children: React.ReactNode; className?: string }) => (
   <div className={cn('bg-white rounded-2xl border border-slate-200/80 shadow-premium', className)}>
@@ -18,7 +19,7 @@ const PanelCard = ({ children, className }: { children: React.ReactNode; classNa
 );
 
 const PanelCardHead = ({
-  icon: Icon, title, iconBg = 'bg-[#0F4C81]/8 border-[#0F4C81]/15', iconCls = 'text-[#0F4C81]', children,
+  icon: Icon, title, iconBg, iconCls, children,
 }: {
   icon: React.FC<{ size?: number; className?: string; strokeWidth?: number }>;
   title: string; iconBg?: string; iconCls?: string; children?: React.ReactNode;
@@ -42,9 +43,11 @@ export const NewEncaminhamento: React.FC = () => {
     triggerDirectPrintEncaminhamento, addEncaminhamento, updateEncaminhamento,
     specialistsCatalog, addSpecialist,
     lastClinicName, setLastClinicName,
+    activeEncProfile, setActiveEncProfile,
   } = useApp();
 
   const isEdit = !!activeEncaminhamentoForEdit;
+  const ui = encUi(activeEncProfile);
 
   const [patientId,   setPatientId]   = useState('');
   const [patQuery,    setPatQuery]    = useState('');
@@ -58,15 +61,23 @@ export const NewEncaminhamento: React.FC = () => {
   const [selectedSpecialists, setSelectedSpecialists] = useState<string[]>([]);
   const [newSpecialistName,   setNewSpecialistName]   = useState('');
 
+  // Cada clínica maneja su propio historial de pacientes: en NEUROISBE solo
+  // aparecen los pacientes de NEUROISBE; en NEUROMOBIUS los suyos (los antiguos
+  // sin origen se consideran de NEUROMOBIUS).
   const filteredPatients = useMemo(() => {
     if (!patQuery.trim()) return [];
     const q = patQuery.toLowerCase();
-    return patients.filter(p => p.name.toLowerCase().includes(q) || p.identityCard.includes(q));
-  }, [patients, patQuery]);
+    return patients.filter(p => {
+      const pOrigin = p.origin ?? 'neuromobius';
+      if (pOrigin !== activeEncProfile) return false;
+      return p.name.toLowerCase().includes(q) || (p.identityCard || '').includes(q);
+    });
+  }, [patients, patQuery, activeEncProfile]);
 
   // Prefill en modo edición
   useEffect(() => {
     if (activeEncaminhamentoForEdit) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- prefills the whole form from the edit target; too many fields to safely move to render-phase
       setPatientId(activeEncaminhamentoForEdit.patientId);
       const p = patients.find(p => p.id === activeEncaminhamentoForEdit.patientId);
       if (p) setPatQuery(p.name);
@@ -88,6 +99,13 @@ export const NewEncaminhamento: React.FC = () => {
       setSelectedSpecialists([]);
     }
   }, [activeEncaminhamentoForEdit, patients, lastClinicName]);
+
+  // Al editar un documento, la pestaña activa pas a reflejar su perfil original.
+  useEffect(() => {
+    if (activeEncaminhamentoForEdit?.templateId) {
+      setActiveEncProfile(activeEncaminhamentoForEdit.templateId);
+    }
+  }, [activeEncaminhamentoForEdit, setActiveEncProfile]);
 
   const handleToggleNoDate = (checked: boolean) => {
     setNoDate(checked);
@@ -114,7 +132,7 @@ export const NewEncaminhamento: React.FC = () => {
       const created = await addSpecialist(name);
       setSelectedSpecialists(prev => [...prev, created.id]);
       setNewSpecialistName('');
-    } catch (e: any) { alert(t('save_error_msg', { message: e.message })); }
+    } catch (e) { alert(t('save_error_msg', { message: getErrorMessage(e) })); }
   };
 
   const handleSave = async (print: boolean) => {
@@ -123,13 +141,14 @@ export const NewEncaminhamento: React.FC = () => {
 
     let fPid = patientId;
     if (!fPid) {
-      const exact = patients.find(p => p.name.toLowerCase() === patQuery.toLowerCase());
+      const exact = patients.find(p => (p.origin ?? 'neuromobius') === activeEncProfile
+        && p.name.toLowerCase() === patQuery.toLowerCase());
       if (exact) { fPid = exact.id; }
       else {
         try {
-          const created = await addPatient({ name: patQuery.trim(), identityCard: `NA-${Date.now()}` });
+          const created = await addPatient({ name: patQuery.trim(), origin: activeEncProfile });
           fPid = created.id;
-        } catch (e: any) { alert(t('save_error_msg', { message: e.message })); return; }
+        } catch (e) { alert(t('save_error_msg', { message: getErrorMessage(e) })); return; }
       }
     }
 
@@ -139,6 +158,7 @@ export const NewEncaminhamento: React.FC = () => {
       hd: hd.trim() || undefined,
       motivo: motivo.trim() || undefined,
       clinicName: clinicName.trim() || undefined,
+      templateId: activeEncProfile,
       specialists: selectedSpecialists,
     };
 
@@ -153,7 +173,7 @@ export const NewEncaminhamento: React.FC = () => {
       if (print) triggerDirectPrintEncaminhamento(saved);
       else alert(isEdit ? t('encaminhamento_success_edit') : t('encaminhamento_success'));
       setCurrentView('encaminhamentos');
-    } catch (e: any) { alert(t('save_error_msg', { message: e.message })); }
+    } catch (e) { alert(t('save_error_msg', { message: getErrorMessage(e) })); }
   };
 
   const handleCancel = () => { if (isEdit) setActiveEncaminhamentoForEdit(null); setCurrentView('encaminhamentos'); };
@@ -166,7 +186,7 @@ export const NewEncaminhamento: React.FC = () => {
   };
 
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="space-y-4 animate-fade-in">
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3">
@@ -190,7 +210,7 @@ export const NewEncaminhamento: React.FC = () => {
 
           {/* ── Bloque 1: Especialistas ──────────────────────────────────── */}
           <PanelCard>
-            <PanelCardHead icon={Stethoscope} title={t('encaminhamento_sec_specialists')} />
+            <PanelCardHead icon={Stethoscope} title={t('encaminhamento_sec_specialists')} iconBg={ui.iconBox} iconCls={ui.iconCls} />
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {specialistsCatalog.map(s => {
@@ -199,14 +219,14 @@ export const NewEncaminhamento: React.FC = () => {
                     <label key={s.id} className={cn(
                       'flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer text-sm font-medium transition-all select-none',
                       checked
-                        ? 'bg-[#0F4C81]/8 border-[#0F4C81]/30 text-[#0F4C81]'
+                        ? ui.checkedOption
                         : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
                     )}>
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleSpecialist(s.id)}
-                        className="w-4 h-4 rounded cursor-pointer accent-[#0F4C81]"
+                        className={cn('w-4 h-4 rounded cursor-pointer', ui.accentInput)}
                       />
                       <span className="leading-snug">{s.name}</span>
                     </label>
@@ -223,7 +243,7 @@ export const NewEncaminhamento: React.FC = () => {
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateSpecialist(); } }}
                 />
                 <button type="button" onClick={handleCreateSpecialist}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-[#0F4C81] hover:bg-[#0a3a63] text-white text-xs font-bold rounded-xl transition-colors shrink-0">
+                  className={`flex items-center gap-1.5 px-3 py-2 ${ui.solidBtn} text-white text-xs font-bold rounded-xl transition-colors shrink-0`}>
                   <PlusCircle size={13} /> {t('encaminhamento_specialist_add_btn')}
                 </button>
               </div>
@@ -232,7 +252,7 @@ export const NewEncaminhamento: React.FC = () => {
 
           {/* ── Bloque 2: Dados do Paciente ───────────────────────────────── */}
           <PanelCard>
-            <PanelCardHead icon={User} title={t('receta_sec_patient')} />
+            <PanelCardHead icon={User} title={t('receta_sec_patient')} iconBg={ui.iconBox} iconCls={ui.iconCls} />
             <div className="p-6 space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="sm:col-span-2 relative">
@@ -240,7 +260,7 @@ export const NewEncaminhamento: React.FC = () => {
                   <div className="relative">
                     <Search size={16} strokeWidth={1.75} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                     <Input
-                      className="pl-10 pr-8 h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50"
+                      className={`pl-10 pr-8 h-11 border-slate-200 bg-slate-50/50 focus:bg-white ${ui.focusBorder}`}
                       placeholder={t('new_order_pat_search')}
                       value={patQuery}
                       onChange={e => { setPatQuery(e.target.value); setPatientId(''); setShowPatDrop(true); }}
@@ -266,13 +286,13 @@ export const NewEncaminhamento: React.FC = () => {
                         <button key={p.id} type="button"
                           onMouseDown={e => { e.preventDefault(); handleSelectPatient(p.id, p.name); }}
                           className="flex items-center gap-3 text-left w-full px-4 py-3 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0">
-                          <div className="w-8 h-8 rounded-lg bg-[#0F4C81]/10 text-[#0F4C81] flex items-center justify-center text-xs font-bold shrink-0">
+                          <div className={`w-8 h-8 rounded-lg ${ui.avatar} flex items-center justify-center text-xs font-bold shrink-0`}>
                             {p.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-slate-900">{p.name}</p>
                             <p className="text-xs text-slate-400">
-                              {p.identityCard !== 'N/A' ? `DNI: ${p.identityCard}` : ''}
+                              {hasIdentity(p.identityCard) ? `DNI: ${p.identityCard}` : ''}
                               {p.age ? ` · ${p.age} ${t('years')}` : ''}
                             </p>
                           </div>
@@ -284,7 +304,7 @@ export const NewEncaminhamento: React.FC = () => {
                   {patientId && selectedPatient && (
                     <div className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
                       <CheckCircle2 size={13} strokeWidth={2.5} />
-                      {selectedPatient.name} — DNI: {selectedPatient.identityCard}
+                      {selectedPatient.name}{hasIdentity(selectedPatient.identityCard) ? ` — DNI: ${selectedPatient.identityCard}` : ''}
                     </div>
                   )}
                 </div>
@@ -293,7 +313,7 @@ export const NewEncaminhamento: React.FC = () => {
                   <label className="block text-xs font-semibold text-slate-700 mb-2">
                     {t('encaminhamento_age_label')} <span className="text-slate-400 font-normal">({t('optional')})</span>
                   </label>
-                  <Input className="h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50"
+                  <Input className={`h-11 border-slate-200 bg-slate-50/50 focus:bg-white ${ui.focusBorder}`}
                     placeholder={t('encaminhamento_age_placeholder')}
                     value={patientAge} onChange={e => setPatientAge(e.target.value)} />
                 </div>
@@ -316,13 +336,13 @@ export const NewEncaminhamento: React.FC = () => {
                     <Calendar size={16} strokeWidth={1.75} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                     <Input type="date"
                       disabled={noDate}
-                      className="pl-10 h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className={`pl-10 h-11 border-slate-200 bg-slate-50/50 focus:bg-white ${ui.focusBorder} disabled:opacity-50 disabled:cursor-not-allowed`}
                       value={encDate} onChange={e => setEncDate(e.target.value)} />
                   </div>
                   <label className="flex items-center gap-2.5 mt-2.5 cursor-pointer select-none">
                     <input type="checkbox" checked={noDate}
                       onChange={e => handleToggleNoDate(e.target.checked)}
-                      className="w-5 h-5 rounded cursor-pointer accent-[#0F4C81]" />
+                      className={cn('w-5 h-5 rounded cursor-pointer', ui.accentInput)} />
                     <span className="text-sm font-semibold text-slate-700">{t('receta_no_date_checkbox')}</span>
                   </label>
                 </div>
@@ -331,7 +351,7 @@ export const NewEncaminhamento: React.FC = () => {
                   <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 mb-2">
                     <FileText size={12} /> {t('encaminhamento_hd_label')} <span className="text-slate-400 font-normal">({t('optional')})</span>
                   </label>
-                  <Input className="h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50"
+                  <Input className={`h-11 border-slate-200 bg-slate-50/50 focus:bg-white ${ui.focusBorder}`}
                     placeholder={t('encaminhamento_hd_placeholder')}
                     value={hd} onChange={e => setHd(e.target.value)} />
                 </div>
@@ -341,12 +361,12 @@ export const NewEncaminhamento: React.FC = () => {
 
           {/* ── Bloque 3: Encaminhamento ─────────────────────────────────── */}
           <PanelCard>
-            <PanelCardHead icon={Send} title={t('encaminhamento_sec_motivo')} iconBg="bg-emerald-50 border-emerald-200" iconCls="text-emerald-600" />
+            <PanelCardHead icon={Send} title={t('encaminhamento_sec_motivo')} iconBg={ui.iconBox} iconCls={ui.iconCls} />
             <div className="p-6 space-y-2">
               <p className="text-xs text-slate-500 italic">{t('encaminhamento_fixed_text')}</p>
               <Textarea
                 rows={6}
-                className="border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50 resize-none"
+                className={`border-slate-200 bg-slate-50/50 focus:bg-white ${ui.focusBorder} resize-none`}
                 placeholder={t('encaminhamento_motivo_placeholder')}
                 value={motivo}
                 onChange={e => setMotivo(e.target.value)}
@@ -359,18 +379,18 @@ export const NewEncaminhamento: React.FC = () => {
         {/* ── Columna derecha — Resumen sticky ─────────────────────────── */}
         <div className="lg:col-span-1 lg:sticky lg:top-20 space-y-4">
           <PanelCard>
-            <PanelCardHead icon={ClipboardList} title={t('receta_sec_summary')} />
+            <PanelCardHead icon={ClipboardList} title={t('receta_sec_summary')} iconBg={ui.iconBox} iconCls={ui.iconCls} />
             <div className="p-5 space-y-4">
               <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">{t('pat_col_name')}</p>
                 {patQuery.trim() ? (
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-[#0F4C81]/10 text-[#0F4C81] flex items-center justify-center text-xs font-bold shrink-0">
+                    <div className={`w-8 h-8 rounded-lg ${ui.avatar} flex items-center justify-center text-xs font-bold shrink-0`}>
                       {patQuery.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-slate-900 leading-tight">{patQuery}</p>
-                      {patientId && selectedPatient && (
+                      {patientId && selectedPatient && hasIdentity(selectedPatient.identityCard) && (
                         <p className="text-xs text-slate-400">{selectedPatient.identityCard}</p>
                       )}
                     </div>
@@ -389,7 +409,7 @@ export const NewEncaminhamento: React.FC = () => {
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('encaminhamento_sec_specialists')}</p>
                   {selectedSpecialists.length > 0 && (
-                    <span className="text-[10px] font-bold text-white bg-[#0F4C81] px-2 py-0.5 rounded-full">{selectedSpecialists.length}</span>
+                    <span className={`text-[10px] font-bold text-white ${ui.solidBadge} px-2 py-0.5 rounded-full`}>{selectedSpecialists.length}</span>
                   )}
                 </div>
                 {selectedSpecialists.length === 0 ? (
@@ -400,7 +420,7 @@ export const NewEncaminhamento: React.FC = () => {
                       const spec = specialistsCatalog.find(s => s.id === sid);
                       return (
                         <div key={sid} className="flex items-start gap-2 group">
-                          <div className="w-1.5 h-1.5 rounded-full bg-[#0F4C81] mt-1.5 shrink-0" />
+                          <div className={`w-1.5 h-1.5 rounded-full ${ui.dot} mt-1.5 shrink-0`} />
                           <p className="text-xs text-slate-700 leading-snug flex-1">{spec?.name ?? sid}</p>
                           <button type="button" onClick={() => toggleSpecialist(sid)}
                             className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0">
@@ -417,7 +437,7 @@ export const NewEncaminhamento: React.FC = () => {
 
           <div className="space-y-2">
             <button type="button" onClick={() => handleSave(false)}
-              className="flex items-center justify-center gap-2 w-full h-12 rounded-xl bg-[#0F4C81] hover:bg-[#0a3a63] text-white text-sm font-bold shadow-sm hover:shadow-md transition-all">
+              className={`flex items-center justify-center gap-2 w-full h-12 rounded-xl ${ui.solidBtn} text-white text-sm font-bold shadow-sm hover:shadow-md transition-all`}>
               <Check size={17} strokeWidth={2.5} />
               {t('save')}
             </button>

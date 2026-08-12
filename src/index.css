@@ -119,10 +119,12 @@
   @page { margin: 0; size: A4; }
   html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
   #root { display: none !important; }
+  body, body * { font-family: Arial, sans-serif !important; font-feature-settings: normal !important; -webkit-font-smoothing: antialiased !important; text-rendering: optimizeLegibility !important; }
   .print-area { display: none !important; }
   body.print-order .print-area-order,
   body.print-receta .print-area-receta,
-  body.print-encaminhamento .print-area-encaminhamento {
+  body.print-encaminhamento .print-area-encaminhamento,
+  body.print-atestado .print-area-atestado {
     display: block !important; position: static !important; background: white !important;
   }
   .print-area > div { break-inside: avoid; }

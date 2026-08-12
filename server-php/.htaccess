@@ -18,6 +18,12 @@ Header always set Referrer-Policy "strict-origin-when-cross-origin"
 # ── Ocultar versión de PHP ─────────────────────────────────────────────────
 Header unset X-Powered-By
 
+# ── Bloquear acceso web directo a archivos sensibles ──────────────────────
+<FilesMatch "(^\.env|\.sql|\.example)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
 # ── CRÍTICO: pasar el header Authorization a PHP (XAMPP lo bloquea por defecto)
 RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 

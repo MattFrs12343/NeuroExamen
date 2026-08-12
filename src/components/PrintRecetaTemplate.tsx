@@ -63,7 +63,7 @@ export const PrintRecetaTemplate: React.FC = () => {
     <div className="print-area print-area-receta" style={{ display: 'none', backgroundColor: '#fff' }}>
       {Array.from({ length: recetaPrintCopies }).map((_, pageIdx) => (
       <div key={pageIdx} style={{
-        fontFamily: 'Inter, Arial, sans-serif',
+        fontFamily: 'Arial, sans-serif',
         backgroundColor: '#fff',
         color: BLACK,
         padding: '16mm 18mm',
@@ -100,10 +100,10 @@ export const PrintRecetaTemplate: React.FC = () => {
             {clinicSistema && (
               <p style={{ margin: '0 0 4px 0', fontSize: '10.5px', fontWeight: 700, color: BLACK }}>{clinicSistema}</p>
             )}
-            {clinicAddress && <p style={{ margin: '0 0 2px 0', fontSize: '10px', color: '#374151' }}>{clinicAddress}</p>}
+            {clinicAddress && <p style={{ margin: '0 0 2px 0', fontSize: '10px', color: '#374151', whiteSpace: 'pre-line' }}>{clinicAddress}</p>}
             <div style={{ display: 'flex', gap: '14px', marginTop: '4px' }}>
               {clinicPhone && (
-                <span style={{ fontSize: '10px', color: '#374151' }}>
+                <span style={{ fontSize: '10px', color: '#374151', whiteSpace: 'pre-line' }}>
                   <strong>{t('receta_clinic_phone_label')}:</strong> {clinicPhone}
                 </span>
               )}

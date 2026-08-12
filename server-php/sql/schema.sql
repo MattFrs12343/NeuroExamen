@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS patients (
   id            CHAR(36)     NOT NULL PRIMARY KEY,
   name          VARCHAR(255) NOT NULL,
-  identity_card VARCHAR(100) NOT NULL UNIQUE,
+  identity_card VARCHAR(100) NULL,
   age           INT          NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

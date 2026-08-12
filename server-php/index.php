@@ -82,6 +82,11 @@ if ($uri === '/encaminhamentos' || preg_match('#^/encaminhamentos/[^/]+$#', $uri
     require __DIR__ . '/api/encaminhamentos/index.php'; exit;
 }
 
+// ── Atestados ──────────────────────────────────────────────────────────────────
+if ($uri === '/atestados' || preg_match('#^/atestados/[^/]+$#', $uri)) {
+    require __DIR__ . '/api/atestados/index.php'; exit;
+}
+
 // ── Setup / Utilities (solo GET, requiere ?confirm=RESET) ────────────────────
 if ($uri === '/admin/reset') {
     require __DIR__ . '/setup/reset_data.php'; exit;

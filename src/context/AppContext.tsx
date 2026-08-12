@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import type { ViewType, User, Patient, Exam, Order, OrderStatus, Receta, MedicationLine, ClinicProfile, Encaminhamento } from '../types';
+import type { ViewType, User, Patient, Exam, Order, OrderStatus, Receta, MedicationLine, ClinicProfile, Encaminhamento, Atestado } from '../types';
+import type { EncProfileKey } from '../data/encaminhamentoProfiles';
 import { INITIAL_EXAMS } from '../data/seedData';
 import printCerebroImg from '../assets/print-neurocerebro.webp';
 import printMobiusImg from '../assets/print-neuomobius.webp';
@@ -22,6 +23,7 @@ interface AppContextProps {
   orders: Order[];
   recetas: Receta[];
   encaminhamentos: Encaminhamento[];
+  atestados: Atestado[];
   exams: Exam[];
   clinics: string[];
   clinicProfiles: ClinicProfile[];
@@ -46,12 +48,19 @@ interface AppContextProps {
   setActiveEncaminhamentoForEdit: (encaminhamento: Encaminhamento | null) => void;
   selectedEncaminhamentoForPrint: Encaminhamento | null;
   triggerDirectPrintEncaminhamento: (encaminhamento: Encaminhamento) => void;
+  activeAtestadoForEdit: Atestado | null;
+  setActiveAtestadoForEdit: (atestado: Atestado | null) => void;
+  selectedAtestadoForPrint: Atestado | null;
+  triggerDirectPrintAtestado: (atestado: Atestado) => void;
+  activeEncProfile: EncProfileKey;
+  setActiveEncProfile: (profile: EncProfileKey) => void;
   lastClinicName: string;
   setLastClinicName: (name: string) => void;
   refreshPatients: () => Promise<void>;
   refreshOrders: () => Promise<void>;
   refreshRecetas: () => Promise<void>;
   refreshEncaminhamentos: () => Promise<void>;
+  refreshAtestados: () => Promise<void>;
   addOrder: (orderData: {
     patientId: string;
     date: string;
@@ -85,11 +94,17 @@ interface AppContextProps {
     patientAge?: string;
     hd?: string;
     motivo?: string;
+    clinicName?: string;
+    templateId?: string;
     specialists: string[];
   }) => Promise<Encaminhamento>;
   updateEncaminhamento: (encaminhamento: Encaminhamento) => Promise<void>;
   deleteEncaminhamento: (id: string) => Promise<void>;
+  addAtestado: (data: Omit<Atestado, 'id' | 'createdBy'>) => Promise<Atestado>;
+  updateAtestado: (atestado: Atestado) => Promise<void>;
+  deleteAtestado: (id: string) => Promise<void>;
   addPatient: (patientData: Omit<Patient, 'id'>) => Promise<Patient>;
+  updatePatient: (patient: Patient) => Promise<void>;
   addCustomExam: (name: string) => Promise<{ id: string; name: string }>;
   deleteCustomExam: (id: string) => Promise<void>;
   addMedication: (name: string) => Promise<{ id: string; name: string }>;
@@ -110,6 +125,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [recetas, setRecetas] = useState<Receta[]>([]);
   const [encaminhamentos, setEncaminhamentos] = useState<Encaminhamento[]>([]);
+  const [atestados, setAtestados] = useState<Atestado[]>([]);
   const [clinics, setClinics] = useState<string[]>([]);
   const [clinicProfiles, setClinicProfiles] = useState<ClinicProfile[]>([]);
   const [customExamsCatalog, setCustomExamsCatalog] = useState<{ id: string; name: string }[]>([]);
@@ -124,6 +140,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [recetaPrintCopies, setRecetaPrintCopies] = useState<number>(1);
   const [activeEncaminhamentoForEdit, setActiveEncaminhamentoForEdit] = useState<Encaminhamento | null>(null);
   const [selectedEncaminhamentoForPrint, setSelectedEncaminhamentoForPrint] = useState<Encaminhamento | null>(null);
+  const [activeAtestadoForEdit, setActiveAtestadoForEdit] = useState<Atestado | null>(null);
+  const [selectedAtestadoForPrint, setSelectedAtestadoForPrint] = useState<Atestado | null>(null);
+  const [activeEncProfile, setActiveEncProfileState] = useState<EncProfileKey>('neuromobius');
+  const setActiveEncProfile = useCallback((profile: EncProfileKey) => {
+    setActiveEncProfileState(profile);
+  }, []);
   const [lastClinicName, setLastClinicNameState] = useState<string>(() => sessionStorage.getItem('neuro_last_clinic') || '');
 
   const setLastClinicName = (name: string) => {
@@ -142,6 +164,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setOrders([]);
       setRecetas([]);
       setEncaminhamentos([]);
+      setAtestados([]);
       setCurrentView('login');
       return true;
     }
@@ -187,6 +210,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const res = await fetch(`${API}/encaminhamentos`, { headers: authHeaders() });
       if (res.ok) {
         setEncaminhamentos(await res.json());
+      } else {
+        handleAuthError(res.status);
+      }
+    } catch { /* server offline — keep current state */ }
+  }, [handleAuthError]);
+
+  const refreshAtestados = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/atestados`, { headers: authHeaders() });
+      if (res.ok) {
+        setAtestados(await res.json());
       } else {
         handleAuthError(res.status);
       }
@@ -292,12 +326,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   // ── Load data when user logs in ───────────────────────────────────────────
   useEffect(() => {
     if (!currentUser) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- kicks off an async fetch; loading flag can't be derived at render time
     setLoading(true);
     Promise.all([
-      refreshPatients(), refreshOrders(), refreshRecetas(), refreshEncaminhamentos(),
+      refreshPatients(), refreshOrders(), refreshRecetas(), refreshEncaminhamentos(), refreshAtestados(),
       refreshClinics(), refreshRecetaClinics(), refreshCustomExamsCatalog(), refreshMedicationsCatalog(), refreshSpecialistsCatalog(),
     ]).finally(() => setLoading(false));
-  }, [currentUser, refreshPatients, refreshOrders, refreshRecetas, refreshEncaminhamentos, refreshClinics, refreshRecetaClinics, refreshCustomExamsCatalog, refreshMedicationsCatalog, refreshSpecialistsCatalog]);
+  }, [currentUser, refreshPatients, refreshOrders, refreshRecetas, refreshEncaminhamentos, refreshAtestados, refreshClinics, refreshRecetaClinics, refreshCustomExamsCatalog, refreshMedicationsCatalog, refreshSpecialistsCatalog]);
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   const logout = () => {
@@ -308,6 +343,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setOrders([]);
     setRecetas([]);
     setEncaminhamentos([]);
+    setAtestados([]);
     setCurrentView('login');
     setLastClinicName('');
   };
@@ -323,6 +359,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (!res.ok) throw new Error(data.error || 'Error al registrar paciente.');
     await refreshPatients();
     return data as Patient;
+  };
+
+  const updatePatient = async (updated: Patient): Promise<void> => {
+    const payload = {
+      name: updated.name,
+      identityCard: updated.identityCard || null,
+      age: updated.age ?? null,
+      address: updated.address || null,
+    };
+    const res = await fetch(`${API}/patients/${updated.id}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al actualizar paciente.');
+    await refreshPatients();
   };
 
   // ── Custom exams catalog ─────────────────────────────────────────────────
@@ -537,6 +590,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     hd?: string;
     motivo?: string;
     clinicName?: string;
+    templateId?: string;
     specialists: string[];
   }): Promise<Encaminhamento> => {
     const res = await fetch(`${API}/encaminhamentos`, {
@@ -557,6 +611,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       hd: updated.hd || null,
       motivo: updated.motivo || null,
       clinicName: updated.clinicName || null,
+      templateId: updated.templateId || 'neuromobius',
       specialists: updated.specialists,
     };
     const res = await fetch(`${API}/encaminhamentos/${updated.id}`, {
@@ -581,15 +636,54 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setEncaminhamentos(prev => prev.filter(e => e.id !== id));
   };
 
+  // ── Atestados ─────────────────────────────────────────────────────────────
+  const addAtestado = async (data: Omit<Atestado, 'id' | 'createdBy'>): Promise<Atestado> => {
+    const res = await fetch(`${API}/atestados`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(data),
+    });
+    const resData = await res.json();
+    if (!res.ok) throw new Error(resData.error || 'Error al registrar atestado.');
+    await refreshAtestados();
+    return resData as Atestado;
+  };
+
+  const updateAtestado = async (updated: Atestado): Promise<void> => {
+    const payload: Record<string, unknown> = { ...updated };
+    delete payload.id;
+    delete payload.createdBy;
+    const res = await fetch(`${API}/atestados/${updated.id}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al actualizar atestado.');
+    await refreshAtestados();
+  };
+
+  const deleteAtestado = async (id: string): Promise<void> => {
+    const res = await fetch(`${API}/atestados/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Error al eliminar atestado.');
+    }
+    setAtestados(prev => prev.filter(a => a.id !== id));
+  };
+
   // ── Print isolation ──────────────────────────────────────────────────────
-  // Cada sección (pedidos, recetas, encaminhamentos) imprime solo su propia
-  // plantilla. Además de limpiar el estado de las otras dos, se marca en
-  // <body> cuál es el tipo activo (`print-order|receta|encaminhamento`) y el
-  // CSS solo revela el `.print-area` correspondiente — así un nodo obsoleto
-  // jamás se imprime junto al actual.
-  const setActivePrintTarget = (target: 'order' | 'receta' | 'encaminhamento' | null) => {
+  // Cada sección (pedidos, recetas, encaminhamentos, atestados) imprime solo
+  // su propia plantilla. Además de limpiar el estado de las otras, se marca en
+  // <body> cuál es el tipo activo (`print-order|receta|encaminhamento|atestado`)
+  // y el CSS solo revela el `.print-area` correspondiente — así un nodo
+  // obsoleto jamás se imprime junto al actual.
+  const setActivePrintTarget = (target: 'order' | 'receta' | 'encaminhamento' | 'atestado' | null) => {
     const body = document.body;
-    body.classList.remove('print-order', 'print-receta', 'print-encaminhamento');
+    body.classList.remove('print-order', 'print-receta', 'print-encaminhamento', 'print-atestado');
     if (target) body.classList.add(`print-${target}`);
   };
 
@@ -634,6 +728,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setSelectedOrderForPrint(null);
       setSelectedRecetaForPrint(null);
       setSelectedEncaminhamentoForPrint(null);
+      setSelectedAtestadoForPrint(null);
       setRecetaPrintCopies(1);
       setActivePrintTarget(null);
     };
@@ -644,6 +739,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const triggerDirectPrintReceta = (receta: Receta) => {
     setSelectedOrderForPrint(null);
     setSelectedEncaminhamentoForPrint(null);
+    setSelectedAtestadoForPrint(null);
     setOrderPendingPrintSelection(null);
     setSelectedRecetaForPrint(receta);
     setActivePrintTarget('receta');
@@ -653,15 +749,27 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const triggerDirectPrintEncaminhamento = (encaminhamento: Encaminhamento) => {
     setSelectedOrderForPrint(null);
     setSelectedRecetaForPrint(null);
+    setSelectedAtestadoForPrint(null);
     setOrderPendingPrintSelection(null);
     setSelectedEncaminhamentoForPrint(encaminhamento);
     setActivePrintTarget('encaminhamento');
     printAfterRender();
   };
 
+  const triggerDirectPrintAtestado = (atestado: Atestado) => {
+    setSelectedOrderForPrint(null);
+    setSelectedRecetaForPrint(null);
+    setSelectedEncaminhamentoForPrint(null);
+    setOrderPendingPrintSelection(null);
+    setSelectedAtestadoForPrint(atestado);
+    setActivePrintTarget('atestado');
+    printAfterRender();
+  };
+
   const triggerDirectPrint = (order: Order) => {
     setSelectedRecetaForPrint(null);
     setSelectedEncaminhamentoForPrint(null);
+    setSelectedAtestadoForPrint(null);
     setOrderPendingPrintSelection(order);
   };
 
@@ -669,6 +777,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (!orderPendingPrintSelection) return;
     setSelectedRecetaForPrint(null);
     setSelectedEncaminhamentoForPrint(null);
+    setSelectedAtestadoForPrint(null);
     setSelectedOrderForPrint({ ...orderPendingPrintSelection, exams: examIds });
     setOrderPendingPrintSelection(null);
     setActivePrintTarget('order');
@@ -682,7 +791,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       value={{
         currentView, setCurrentView,
         currentUser, setCurrentUser,
-        patients, orders, recetas, encaminhamentos,
+        patients, orders, recetas, encaminhamentos, atestados,
         exams: EXAMS,
         clinics,
         clinicProfiles,
@@ -698,12 +807,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         recetaPrintCopies, setRecetaPrintCopies,
         activeEncaminhamentoForEdit, setActiveEncaminhamentoForEdit,
         selectedEncaminhamentoForPrint, triggerDirectPrintEncaminhamento,
+        activeAtestadoForEdit, setActiveAtestadoForEdit,
+        selectedAtestadoForPrint, triggerDirectPrintAtestado,
+        activeEncProfile, setActiveEncProfile,
         lastClinicName, setLastClinicName,
-        refreshPatients, refreshOrders, refreshRecetas, refreshEncaminhamentos,
+        refreshPatients, refreshOrders, refreshRecetas, refreshEncaminhamentos, refreshAtestados,
         addOrder, updateOrder, deleteOrder,
         addReceta, updateReceta, deleteReceta,
         addEncaminhamento, updateEncaminhamento, deleteEncaminhamento,
-        addPatient, addCustomExam, deleteCustomExam,
+        addAtestado, updateAtestado, deleteAtestado,
+        addPatient, updatePatient, addCustomExam, deleteCustomExam,
         addMedication, deleteMedication,
         addSpecialist, deleteSpecialist,
         addClinic,
@@ -715,6 +828,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook is colocated with its provider by design
 export const useApp = () => {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('useApp must be used within an AppProvider');

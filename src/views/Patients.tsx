@@ -5,6 +5,7 @@ import { PlusCircle, Search, X, User, Users, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { getErrorMessage, hasIdentity } from '../lib/utils';
 
 export const Patients: React.FC = () => {
   const { t } = useTranslation();
@@ -20,7 +21,7 @@ export const Patients: React.FC = () => {
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
     return q
-      ? patients.filter(p => p.name.toLowerCase().includes(q) || p.identityCard.includes(q))
+      ? patients.filter(p => p.name.toLowerCase().includes(q) || (p.identityCard || '').includes(q))
       : patients;
   }, [patients, query]);
 
@@ -34,8 +35,8 @@ export const Patients: React.FC = () => {
       await addPatient({ name: name.trim(), identityCard: dni.trim(), age: age ? parseInt(age) : undefined });
       setName(''); setDni(''); setAge('');
       setModal(false);
-    } catch (err: any) {
-      setError(err.message || 'Error al registrar paciente.');
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Error al registrar paciente.');
     }
   };
 
@@ -77,57 +78,61 @@ export const Patients: React.FC = () => {
 
       {/* ── Table ──────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-premium overflow-hidden">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="border-b border-slate-100">
-              {[t('pat_col_name'), t('pat_col_dni'), t('pat_col_age')].map(h => (
-                <th key={h} className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  {h}
-                </th>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-slate-100">
+                {[t('pat_col_name'), t('pat_col_dni'), t('pat_col_age')].map(h => (
+                  <th key={h} className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
+                        <Users size={24} className="text-slate-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-600">{t('pat_no_found')}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {query ? 'Ajusta el término de búsqueda' : 'Registra el primer paciente'}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ) : filtered.map(p => (
+                <tr key={p.id} className="hover:bg-slate-50/80 transition-colors group">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-[#0F4C81]/10 text-[#0F4C81] flex items-center justify-center text-xs font-bold shrink-0">
+                        {initials(p.name)}
+                      </div>
+                      <p className="text-sm font-semibold text-slate-900 whitespace-nowrap">{p.name}</p>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="font-mono text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg whitespace-nowrap">
+                      {hasIdentity(p.identityCard) ? p.identityCard : (
+                        <span className="text-slate-300">{t('na')}</span>
+                      )}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-500 whitespace-nowrap">
+                    {p.age ? `${p.age} ${t('years')}` : (
+                      <span className="text-slate-300">{t('na')}</span>
+                    )}
+                  </td>
+                </tr>
               ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50">
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={3} className="px-6 py-16 text-center">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
-                      <Users size={24} className="text-slate-400" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-600">{t('pat_no_found')}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        {query ? 'Ajusta el término de búsqueda' : 'Registra el primer paciente'}
-                      </p>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            ) : filtered.map(p => (
-              <tr key={p.id} className="hover:bg-slate-50/80 transition-colors group">
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#0F4C81]/10 text-[#0F4C81] flex items-center justify-center text-xs font-bold shrink-0">
-                      {initials(p.name)}
-                    </div>
-                    <p className="text-sm font-semibold text-slate-900">{p.name}</p>
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <span className="font-mono text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg">
-                    {p.identityCard}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm text-slate-500">
-                  {p.age ? `${p.age} ${t('years')}` : (
-                    <span className="text-slate-300">{t('na')}</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
 
         {filtered.length > 0 && (
           <div className="px-6 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center gap-2">

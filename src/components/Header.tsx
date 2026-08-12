@@ -24,6 +24,8 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
     'new-receta': { label: t('new_receta_title'), sub: 'Prescripción de medicamentos' },
     encaminhamentos:     { label: t('nav_encaminhamentos'),      sub: 'Encaminhamentos para especialistas' },
     'new-encaminhamento': { label: t('new_encaminhamento_title'), sub: 'Encaminhamento para especialista' },
+    atestados:     { label: t('nav_atestados'),       sub: 'Gestión de atestados médicos' },
+    'new-atestado': { label: t('new_atestado_title'),  sub: 'Emisión de atestado médico' },
   };
 
   const current = viewTitle[currentView] ?? { label: 'NeuroExámenes', sub: '' };

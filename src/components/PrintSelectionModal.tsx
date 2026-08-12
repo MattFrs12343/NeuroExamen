@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import { Printer, X } from 'lucide-react';
@@ -16,6 +16,7 @@ export const PrintSelectionModal: React.FC = () => {
   const { orderPendingPrintSelection, exams, confirmPrintSelection, cancelPrintSelection } = useApp();
 
   const [checked, setChecked] = useState<Record<number, boolean>>({});
+  const [checkedForOrderId, setCheckedForOrderId] = useState<string | null>(null);
 
   const order = orderPendingPrintSelection;
 
@@ -36,13 +37,12 @@ export const PrintSelectionModal: React.FC = () => {
       })()
     : [];
 
-  useEffect(() => {
-    if (!order) return;
-    const initial: Record<number, boolean> = {};
-    entries.forEach((_, idx) => { initial[idx] = true; });
-    setChecked(initial);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [order?.id]);
+  // Reset selection when a new order is opened for printing. Done during
+  // render (not in an effect) so the checkboxes never flash unchecked.
+  if (order && order.id !== checkedForOrderId) {
+    setCheckedForOrderId(order.id);
+    setChecked(Object.fromEntries(entries.map((_, idx) => [idx, true])));
+  }
 
   if (!order) return null;
 

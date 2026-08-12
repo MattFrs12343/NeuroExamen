@@ -9,16 +9,34 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { cn } from '../lib/utils';
+import { encUi, getEncProfile, withAlpha } from '../data/encaminhamentoProfiles';
+import { cn, getErrorMessage, hasIdentity } from '../lib/utils';
 
 const PAGE_SIZE = 15;
+
+// Insignia compacta del perfil (clínica) que originó el documento.
+const ClinicBadge: React.FC<{ templateId?: string }> = ({ templateId }) => {
+  const p = getEncProfile(templateId);
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap"
+      style={{ backgroundColor: withAlpha(p.primary, 0.1), color: p.primaryDark }}
+    >
+      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.primary }} />
+      {p.label}
+    </span>
+  );
+};
 
 export const EncaminhamentosList: React.FC = () => {
   const { t } = useTranslation();
   const {
     encaminhamentos, specialistsCatalog, setCurrentView,
     triggerDirectPrintEncaminhamento, deleteEncaminhamento, setActiveEncaminhamentoForEdit,
+    activeEncProfile,
   } = useApp();
+
+  const ui = encUi(activeEncProfile);
 
   const [filterPatient,  setFilterPatient]  = useState('');
   const [filterStart,    setFilterStart]    = useState('');
@@ -43,14 +61,15 @@ export const EncaminhamentosList: React.FC = () => {
   };
 
   const filtered = useMemo(() => encaminhamentos.filter(e => {
+    if ((e.templateId ?? 'neuromobius') !== activeEncProfile) return false;
     if (appliedPatient.trim()) {
       const q = appliedPatient.toLowerCase();
-      if (!e.patientName.toLowerCase().includes(q) && !e.patientIdentityCard.includes(q)) return false;
+      if (!e.patientName.toLowerCase().includes(q) && !(e.patientIdentityCard || '').includes(q)) return false;
     }
     if (appliedStart && (!e.date || e.date < appliedStart)) return false;
     if (appliedEnd   && (!e.date || e.date > appliedEnd))   return false;
     return true;
-  }), [encaminhamentos, appliedPatient, appliedStart, appliedEnd]);
+  }), [encaminhamentos, activeEncProfile, appliedPatient, appliedStart, appliedEnd]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage   = Math.min(currentPage, totalPages);
@@ -73,7 +92,7 @@ export const EncaminhamentosList: React.FC = () => {
     try {
       await deleteEncaminhamento(id);
       if (selectedEnc?.id === id) setSelectedEnc(null);
-    } catch (err: any) { alert('Error: ' + err.message); }
+    } catch (err) { alert('Error: ' + getErrorMessage(err)); }
   };
 
   const getInitials = (name: string) =>
@@ -90,7 +109,7 @@ export const EncaminhamentosList: React.FC = () => {
         </div>
         <Button
           onClick={() => { setActiveEncaminhamentoForEdit(null); setCurrentView('new-encaminhamento'); }}
-          className="self-start sm:self-auto bg-[#0F4C81] hover:bg-[#0a3a63] shadow-sm hover:shadow-md transition-all"
+          className={`self-start sm:self-auto ${ui.solidBtn} shadow-sm hover:shadow-md transition-all`}
         >
           <PlusCircle size={16} strokeWidth={2} />
           {t('encaminhamentos_new_btn')}
@@ -100,8 +119,8 @@ export const EncaminhamentosList: React.FC = () => {
       {/* ── Filters ─────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-premium overflow-hidden">
         <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100">
-          <div className="p-2.5 rounded-xl bg-[#0F4C81]/8 border border-[#0F4C81]/15">
-            <Filter size={15} className="text-[#0F4C81]" strokeWidth={2} />
+          <div className={`p-2.5 rounded-xl ${ui.iconBox}`}>
+            <Filter size={15} className={ui.iconCls} strokeWidth={2} />
           </div>
           <div>
             <p className="text-sm font-bold text-slate-900">{t('ord_filter_title')}</p>
@@ -136,7 +155,7 @@ export const EncaminhamentosList: React.FC = () => {
             <Button variant="ghost" size="sm" onClick={clearFilters} className="hover:bg-slate-100">
               <RefreshCw size={14} /> {t('ord_filter_clear')}
             </Button>
-            <Button size="sm" onClick={applyFilters} className="bg-[#0F4C81] hover:bg-[#0a3a63]">
+            <Button size="sm" onClick={applyFilters} className={ui.solidBtn}>
               {t('ord_filter_btn')}
             </Button>
           </div>
@@ -149,7 +168,7 @@ export const EncaminhamentosList: React.FC = () => {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-slate-100">
-                {[t('pat_col_name'), t('date'), t('encaminhamento_hd_label'), t('encaminhamento_col_specialists'), t('ord_col_doctor'), t('actions')].map((h, i) => (
+                {[t('pat_col_name'), t('date'), t('encaminhamento_hd_label'), t('encaminhamento_col_specialists'), t('ord_col_doctor'), t('enc_doc_col'), t('actions')].map((h, i) => (
                   <th key={i} className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                     {h}
                   </th>
@@ -159,7 +178,7 @@ export const EncaminhamentosList: React.FC = () => {
             <tbody className="divide-y divide-slate-50">
               {paged.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center">
+                  <td colSpan={7} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
                         <Stethoscope size={24} className="text-slate-400" />
@@ -178,12 +197,12 @@ export const EncaminhamentosList: React.FC = () => {
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-[#0F4C81]/10 text-[#0F4C81] text-xs font-bold flex items-center justify-center shrink-0">
+                      <div className={`w-10 h-10 rounded-xl ${ui.avatar} text-xs font-bold flex items-center justify-center shrink-0`}>
                         {getInitials(enc.patientName)}
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-slate-900">{enc.patientName}</p>
-                        <p className="text-xs text-slate-400">DNI: {enc.patientIdentityCard}</p>
+                        <p className="text-xs text-slate-400">{hasIdentity(enc.patientIdentityCard) ? `DNI: ${enc.patientIdentityCard}` : ''}</p>
                       </div>
                     </div>
                   </td>
@@ -214,11 +233,14 @@ export const EncaminhamentosList: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4">
+                    <ClinicBadge templateId={enc.templateId} />
+                  </td>
+                  <td className="px-6 py-4">
                     <div className="flex items-center gap-0.5">
                       <button
                         title={t('ord_tooltip_view')}
                         onClick={e => { e.stopPropagation(); setSelectedEnc(enc); }}
-                        className="p-2 rounded-lg text-slate-400 hover:text-[#0F4C81] hover:bg-[#0F4C81]/8 transition-all"
+                        className={`p-2 rounded-lg text-slate-400 ${ui.hoverIcon} transition-all`}
                       >
                         <Eye size={15} />
                       </button>
@@ -271,7 +293,7 @@ export const EncaminhamentosList: React.FC = () => {
                   : <button key={p} onClick={() => setCurrentPage(p as number)}
                       className={cn('w-9 h-9 flex items-center justify-center rounded-xl text-sm font-semibold border transition-all',
                         safePage === p
-                          ? 'bg-[#0F4C81] text-white border-[#0F4C81] shadow-sm'
+                          ? `${ui.pageActive} shadow-sm`
                           : 'text-slate-600 border-transparent hover:bg-white hover:border-slate-200')}>
                       {p}
                     </button>
@@ -294,8 +316,8 @@ export const EncaminhamentosList: React.FC = () => {
             <div className="px-6 py-5 border-b border-slate-100">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-[#0F4C81]/8 border border-[#0F4C81]/15">
-                    <Stethoscope size={18} className="text-[#0F4C81]" />
+                  <div className={`p-2.5 rounded-xl ${ui.iconBox}`}>
+                    <Stethoscope size={18} className={ui.iconCls} />
                   </div>
                   <div>
                     <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mb-0.5">{t('encaminhamentos_details_title')}</p>
@@ -312,27 +334,32 @@ export const EncaminhamentosList: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-5">
                 <div className="flex items-center gap-2 mb-4">
-                  <User size={14} className="text-[#0F4C81]" />
+                  <User size={14} className={ui.iconCls} />
                   <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('ord_details_patient')}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-[#0F4C81]/10 text-[#0F4C81] flex items-center justify-center text-sm font-bold">
+                  <div className={`w-12 h-12 rounded-xl ${ui.avatar} flex items-center justify-center text-sm font-bold`}>
                     {getInitials(selectedEnc.patientName)}
                   </div>
                   <div>
                     <p className="text-base font-bold text-slate-900">{selectedEnc.patientName}</p>
                     <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
-                      <span>DNI: <span className="font-semibold text-slate-700">{selectedEnc.patientIdentityCard}</span></span>
+                      {hasIdentity(selectedEnc.patientIdentityCard) && (
+                        <span>DNI: <span className="font-semibold text-slate-700">{selectedEnc.patientIdentityCard}</span></span>
+                      )}
                       <span className="text-slate-300">·</span>
                       <span>{selectedEnc.date || '—'}</span>
                       {selectedEnc.patientAge && (<><span className="text-slate-300">·</span><span>{selectedEnc.patientAge}</span></>)}
                     </div>
                     {selectedEnc.clinicName && (
                       <div className="flex items-center gap-1.5 mt-1.5 text-xs text-slate-500">
-                        <Building2 size={13} className="text-[#0F4C81]" />
+                        <Building2 size={13} className={ui.iconCls} />
                         <span className="font-semibold text-slate-700">{selectedEnc.clinicName}</span>
                       </div>
                     )}
+                    <div className="mt-2">
+                      <ClinicBadge templateId={selectedEnc.templateId} />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -350,7 +377,7 @@ export const EncaminhamentosList: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <Stethoscope size={14} className="text-[#0F4C81]" />
+                    <Stethoscope size={14} className={ui.iconCls} />
                     <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('encaminhamento_sec_specialists')}</p>
                   </div>
                   <span className="text-xs font-bold text-slate-400">({selectedEnc.specialists.length})</span>
@@ -358,7 +385,7 @@ export const EncaminhamentosList: React.FC = () => {
                 <div className="space-y-2 max-h-72 overflow-y-auto">
                   {selectedEnc.specialists.map((sid, idx) => (
                     <div key={sid} className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-white">
-                      <div className="w-6 h-6 rounded-lg bg-[#0F4C81]/10 text-[#0F4C81] flex items-center justify-center text-[11px] font-bold shrink-0">
+                      <div className={`w-6 h-6 rounded-lg ${ui.avatar} flex items-center justify-center text-[11px] font-bold shrink-0`}>
                         {idx + 1}
                       </div>
                       <p className="flex-1 min-w-0 text-xs text-slate-700 leading-snug">{specialistName(sid)}</p>
@@ -382,16 +409,16 @@ export const EncaminhamentosList: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-4 border-t border-slate-100 bg-slate-50/60 grid grid-cols-3 gap-2">
+            <div className="p-4 border-t border-slate-100 bg-slate-50/60 grid grid-cols-2 sm:grid-cols-3 gap-2">
               <Button variant="outline" size="sm"
                 onClick={() => { triggerDirectPrintEncaminhamento(selectedEnc); setSelectedEnc(null); }}>
                 <Printer size={14} /> {t('print')}
               </Button>
-              <Button size="sm" className="bg-[#0F4C81] hover:bg-[#0a3a63]"
+              <Button size="sm" className={ui.solidBtn}
                 onClick={() => { setActiveEncaminhamentoForEdit(selectedEnc); setCurrentView('new-encaminhamento'); setSelectedEnc(null); }}>
                 <Edit3 size={14} /> {t('edit')}
               </Button>
-              <Button variant="outline" size="sm" className="text-red-500 hover:bg-red-50 hover:border-red-200 border-red-200"
+              <Button variant="outline" size="sm" className="col-span-2 sm:col-span-1 text-red-500 hover:bg-red-50 hover:border-red-200 border-red-200"
                 onClick={() => handleDelete(selectedEnc.id, selectedEnc.patientName)}>
                 {t('delete')}
               </Button>

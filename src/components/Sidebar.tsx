@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import type { ViewType } from '../types';
-import { LayoutDashboard, FileText, LogOut, X, Pill, Stethoscope } from 'lucide-react';
+import { LayoutDashboard, FileText, LogOut, X, Pill, Stethoscope, ChevronDown, FileCheck } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { ENC_PROFILES, ENC_PROFILE_KEYS } from '../data/encaminhamentoProfiles';
 import cerebroLogo from '../assets/cerebro.png';
 
 interface SidebarProps {
@@ -12,21 +13,31 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
-  const { currentView, setCurrentView, logout } = useApp();
+  const { currentView, setCurrentView, logout, activeEncProfile, setActiveEncProfile } = useApp();
   const { t } = useTranslation();
+  const [encOpen, setEncOpen] = useState(false);
 
   const menuItems = [
-    { id: 'dashboard' as ViewType, label: t('nav_dashboard'), icon: LayoutDashboard },
-    { id: 'orders'    as ViewType, label: t('nav_orders'),    icon: FileText },
-    { id: 'recetas'   as ViewType, label: t('nav_recetas'),   icon: Pill },
-    { id: 'encaminhamentos' as ViewType, label: t('nav_encaminhamentos'), icon: Stethoscope },
+    { id: 'dashboard'     as ViewType, label: t('nav_dashboard'),     icon: LayoutDashboard },
+    { id: 'orders'        as ViewType, label: t('nav_orders'),        icon: FileText },
+    { id: 'recetas'       as ViewType, label: t('nav_recetas'),       icon: Pill },
+    { id: 'atestados'     as ViewType, label: t('nav_atestados'),     icon: FileCheck },
   ];
 
+  const isEncActive = currentView === 'encaminhamentos' || currentView === 'new-encaminhamento';
   const isActive = (id: ViewType) =>
     currentView === id ||
-    (id === 'orders'  && currentView === 'new-order') ||
-    (id === 'recetas' && currentView === 'new-receta') ||
-    (id === 'encaminhamentos' && currentView === 'new-encaminhamento');
+    (id === 'orders'    && currentView === 'new-order') ||
+    (id === 'recetas'   && currentView === 'new-receta') ||
+    (id === 'atestados' && currentView === 'new-atestado');
+
+  const encExpanded = encOpen || isEncActive;
+
+  const openEncProfile = (key: (typeof ENC_PROFILE_KEYS)[number]) => {
+    setActiveEncProfile(key);
+    setCurrentView('encaminhamentos');
+    setIsOpen(false);
+  };
 
   return (
     <>
@@ -74,7 +85,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
             return (
               <button
                 key={id}
-                onClick={() => { setCurrentView(id); setIsOpen(false); }}
+                onClick={() => { setCurrentView(id); setEncOpen(false); setIsOpen(false); }}
                 className={cn(
                   'relative flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium',
                   'transition-all duration-150 group',
@@ -98,6 +109,78 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
               </button>
             );
           })}
+
+          {/* ── Encaminhamentos — submenú de clínicas ───────────────────── */}
+          <div>
+            <button
+              onClick={() => setEncOpen(o => !o)}
+              className={cn(
+                'relative flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium',
+                'transition-all duration-150 group',
+                isEncActive
+                  ? 'bg-[#0F4C81] text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+              )}
+            >
+              <Stethoscope
+                size={17}
+                strokeWidth={isEncActive ? 2.5 : 2}
+                className={cn(
+                  'transition-colors',
+                  isEncActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-600'
+                )}
+              />
+              <span className="font-medium">{t('nav_encaminhamentos')}</span>
+              <ChevronDown
+                size={15}
+                strokeWidth={2.5}
+                className={cn(
+                  'ml-auto transition-transform duration-200',
+                  encExpanded ? 'rotate-180' : '',
+                  isEncActive ? 'text-white/80' : 'text-slate-400'
+                )}
+              />
+            </button>
+
+            <div
+              data-testid="enc-submenu"
+              className={cn(
+                'grid transition-all duration-300 ease-out overflow-hidden',
+                encExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+              )}
+            >
+              <div className="min-h-0">
+                <div className="mt-1 ml-4 pl-3 space-y-1 border-l border-slate-200">
+                  {ENC_PROFILE_KEYS.map(key => {
+                    const p = ENC_PROFILES[key];
+                    const activeProfile = key === activeEncProfile;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => openEncProfile(key)}
+                        className={cn(
+                          'flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium',
+                          'transition-all duration-150',
+                          activeProfile
+                            ? 'text-white shadow-sm'
+                            : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                        )}
+                        style={activeProfile
+                          ? { backgroundColor: p.primary, backgroundImage: `linear-gradient(135deg, ${p.primary}, ${p.primaryDark})` }
+                          : undefined}
+                      >
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: activeProfile ? '#fff' : p.primary }}
+                        />
+                        <span className="font-medium">{p.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
         </nav>
 
         {/* ── Footer — logout only ──────────────────────────────────────── */}

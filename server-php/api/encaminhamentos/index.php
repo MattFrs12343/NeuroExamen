@@ -27,6 +27,7 @@ function formatEncaminhamento(array $row, array $specialistIds): array {
         'hd'               => $row['hd']          ?: null,
         'motivo'           => $row['motivo']      ?: null,
         'clinicName'       => $row['clinic_name'] ?: null,
+        'templateId'       => $row['template_id'] ?: 'neuromobius',
         'specialists'      => $specialistIds,
         'createdBy'        => $row['user_name'],
     ];
@@ -101,6 +102,9 @@ if ($method === 'POST') {
     $hd            = $body['hd']            ?? null;
     $motivo        = $body['motivo']        ?? null;
     $clinicName    = $body['clinicName']    ?? null;
+    $templateId    = in_array($body['templateId'] ?? null, ['neuromobius', 'neuroisbe'], true)
+                         ? $body['templateId']
+                         : 'neuromobius';
     $specialistIds = $body['specialists']   ?? [];
 
     if (!$patientId || empty($specialistIds)) {
@@ -117,10 +121,10 @@ if ($method === 'POST') {
         $newId = 'ENC-' . date('Y') . '-' . str_pad((int)$row['seq'], 4, '0', STR_PAD_LEFT);
 
         $stmt = $pdo->prepare(
-            'INSERT INTO encaminhamentos (id, patient_id, user_id, date, patient_age, hd, motivo, clinic_name)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO encaminhamentos (id, patient_id, user_id, date, patient_age, hd, motivo, clinic_name, template_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$newId, $patientId, $userId, $date, $patientAge, $hd, $motivo, $clinicName]);
+        $stmt->execute([$newId, $patientId, $userId, $date, $patientAge, $hd, $motivo, $clinicName, $templateId]);
 
         $pivot = $pdo->prepare('INSERT INTO encaminhamento_specialists (encaminhamento_id, specialist_id) VALUES (?, ?)');
         foreach ($specialistIds as $sid) {
@@ -160,6 +164,9 @@ if ($method === 'PUT' && $encId) {
     $hd            = $body['hd']            ?? null;
     $motivo        = $body['motivo']        ?? null;
     $clinicName    = $body['clinicName']    ?? null;
+    $templateId    = in_array($body['templateId'] ?? null, ['neuromobius', 'neuroisbe'], true)
+                         ? $body['templateId']
+                         : 'neuromobius';
     $specialistIds = $body['specialists']   ?? [];
 
     if (empty($specialistIds)) {
@@ -171,9 +178,9 @@ if ($method === 'PUT' && $encId) {
     $pdo->beginTransaction();
     try {
         $upd = $pdo->prepare(
-            'UPDATE encaminhamentos SET date=?, patient_age=?, hd=?, motivo=?, clinic_name=? WHERE id=?'
+            'UPDATE encaminhamentos SET date=?, patient_age=?, hd=?, motivo=?, clinic_name=?, template_id=? WHERE id=?'
         );
-        $upd->execute([$date, $patientAge, $hd, $motivo, $clinicName, $encId]);
+        $upd->execute([$date, $patientAge, $hd, $motivo, $clinicName, $templateId, $encId]);
 
         $del = $pdo->prepare('DELETE FROM encaminhamento_specialists WHERE encaminhamento_id = ?');
         $del->execute([$encId]);

@@ -10,7 +10,7 @@ import {
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
-import { cn } from '../lib/utils';
+import { cn, getErrorMessage, hasIdentity } from '../lib/utils';
 import { findClinicProfile } from '../lib/clinic';
 
 const PanelCard = ({ children, className }: { children: React.ReactNode; className?: string }) => (
@@ -52,7 +52,7 @@ const emptyLine = (): MedicationLine => ({
 export const NewReceta: React.FC = () => {
   const { t } = useTranslation();
   const {
-    patients, clinicProfiles, addPatient,
+    patients, clinicProfiles, addPatient, updatePatient,
     setCurrentView, activeRecetaForEdit, setActiveRecetaForEdit,
     triggerDirectPrintReceta, addReceta, updateReceta,
     lastClinicName, setLastClinicName, setRecetaPrintCopies,
@@ -106,7 +106,7 @@ export const NewReceta: React.FC = () => {
   const filteredPatients = useMemo(() => {
     if (!patQuery.trim()) return [];
     const q = patQuery.toLowerCase();
-    return patients.filter(p => p.name.toLowerCase().includes(q) || p.identityCard.includes(q));
+    return patients.filter(p => p.name.toLowerCase().includes(q) || (p.identityCard || '').includes(q));
   }, [patients, patQuery]);
 
   // Solo las clínicas con perfil cargado son seleccionables en Recetas.
@@ -136,10 +136,12 @@ export const NewReceta: React.FC = () => {
   // así que puede traer un nombre que no existe en `receta_clinics`. Para una
   // receta NUEVA, si no hay perfil que respalde ese nombre, lo descartamos para
   // no guardar una clínica sin datos ni mostrar el preview vacío.
-  useEffect(() => {
-    if (isEdit || !clinicProfiles.length || !clinicName) return;
-    if (!selectedClinicProfile) setClinicName('');
-  }, [clinicProfiles, isEdit, clinicName, selectedClinicProfile]);
+  // Ajuste hecho durante el render (no en un efecto): clinicName solo cambia
+  // por acciones puntuales (seleccionar, prefill, limpiar), nunca tecla a
+  // tecla, así que no hay riesgo de loop ni de pisar lo que el usuario escribe.
+  if (!isEdit && clinicProfiles.length && clinicName && !selectedClinicProfile) {
+    setClinicName('');
+  }
 
   const handleSelectClinic = (name: string) => {
     setClinicName(name); setLastClinicName(name);
@@ -148,12 +150,13 @@ export const NewReceta: React.FC = () => {
   // Prefill en modo edición
   useEffect(() => {
     if (activeRecetaForEdit) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- prefills the whole form from the edit target; too many fields to safely move to render-phase
       setPatientId(activeRecetaForEdit.patientId);
       const p = patients.find(p => p.id === activeRecetaForEdit.patientId);
       if (p) setPatQuery(p.name);
       setRecetaDate(activeRecetaForEdit.date || '');
       setNoDate(!activeRecetaForEdit.date);
-      setPatientAddress(activeRecetaForEdit.patientAddress || '');
+      setPatientAddress(activeRecetaForEdit.patientAddress || p?.address || '');
 
       setClinicName(activeRecetaForEdit.clinicName || '');
 
@@ -181,6 +184,8 @@ export const NewReceta: React.FC = () => {
 
   const handleSelectPatient = (id: string, name: string) => {
     setPatientId(id); setPatQuery(name); setShowPatDrop(false);
+    const p = patients.find(p => p.id === id);
+    setPatientAddress(p?.address || '');
   };
 
   const isDraftComplete = !!draft.text.trim();
@@ -198,15 +203,22 @@ export const NewReceta: React.FC = () => {
     if (!medications.length)  { alert(t('receta_validation_meds'));    return; }
 
     let fPid = patientId;
+    let fPatient = selectedPatient;
+    const trimmedAddress = patientAddress.trim();
     if (!fPid) {
       const exact = patients.find(p => p.name.toLowerCase() === patQuery.toLowerCase());
-      if (exact) { fPid = exact.id; }
+      if (exact) { fPid = exact.id; fPatient = exact; }
       else {
         try {
-          const created = await addPatient({ name: patQuery.trim(), identityCard: `NA-${Date.now()}` });
-          fPid = created.id;
-        } catch (e: any) { alert(t('save_error_msg', { message: e.message })); return; }
+          const created = await addPatient({ name: patQuery.trim(), address: trimmedAddress || undefined });
+          fPid = created.id; fPatient = created;
+        } catch (e) { alert(t('save_error_msg', { message: getErrorMessage(e) })); return; }
       }
+    }
+
+    // Guarda la dirección en el paciente para precargarla en sus próximas recetas.
+    if (fPatient && trimmedAddress && trimmedAddress !== (fPatient.address || '')) {
+      try { await updatePatient({ ...fPatient, address: trimmedAddress }); } catch { /* no bloquea el guardado de la receta */ }
     }
 
     const payload = {
@@ -217,7 +229,7 @@ export const NewReceta: React.FC = () => {
       clinicAddress: clinicAddress.trim() || undefined,
       clinicPhone: clinicPhone.trim() || undefined,
       clinicCnpj: clinicCnpj.trim() || undefined,
-      patientAddress: patientAddress.trim() || undefined,
+      patientAddress: trimmedAddress || undefined,
       observations: observations.trim() || undefined,
       medications,
     };
@@ -236,7 +248,7 @@ export const NewReceta: React.FC = () => {
       }
       else alert(isEdit ? t('receta_success_edit') : t('receta_success'));
       setCurrentView('recetas');
-    } catch (e: any) { alert(t('save_error_msg', { message: e.message })); }
+    } catch (e) { alert(t('save_error_msg', { message: getErrorMessage(e) })); }
   };
 
   const handleCancel = () => { if (isEdit) setActiveRecetaForEdit(null); setCurrentView('recetas'); };
@@ -297,8 +309,8 @@ export const NewReceta: React.FC = () => {
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t('receta_clinic_preview_title')}</p>
                   {clinicSecretaria && <p>{clinicSecretaria}</p>}
                   {clinicSistema && <p>{clinicSistema}</p>}
-                  {clinicAddress && <p>{clinicAddress}</p>}
-                  {clinicPhone && <p><strong className="font-semibold text-slate-700">Tel:</strong> {clinicPhone}</p>}
+                  {clinicAddress && <p className="whitespace-pre-line">{clinicAddress}</p>}
+                  {clinicPhone && <p className="whitespace-pre-line"><strong className="font-semibold text-slate-700">Tel:</strong> {clinicPhone}</p>}
                   {clinicCnpj && <p><strong className="font-semibold text-slate-700">CNPJ:</strong> {clinicCnpj}</p>}
                 </div>
               )}
@@ -347,7 +359,7 @@ export const NewReceta: React.FC = () => {
                           <div>
                             <p className="text-sm font-semibold text-slate-900">{p.name}</p>
                             <p className="text-xs text-slate-400">
-                              {p.identityCard !== 'N/A' ? `DNI: ${p.identityCard}` : ''}
+                              {hasIdentity(p.identityCard) ? `DNI: ${p.identityCard}` : ''}
                               {p.age ? ` · ${p.age} ${t('years')}` : ''}
                             </p>
                           </div>
@@ -359,7 +371,7 @@ export const NewReceta: React.FC = () => {
                   {patientId && selectedPatient && (
                     <div className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
                       <CheckCircle2 size={13} strokeWidth={2.5} />
-                      {selectedPatient.name} — DNI: {selectedPatient.identityCard}
+                      {selectedPatient.name}{hasIdentity(selectedPatient.identityCard) ? ` — DNI: ${selectedPatient.identityCard}` : ''}
                     </div>
                   )}
                 </div>
@@ -505,7 +517,7 @@ export const NewReceta: React.FC = () => {
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-slate-900 leading-tight">{patQuery}</p>
-                      {patientId && selectedPatient && (
+                      {patientId && selectedPatient && hasIdentity(selectedPatient.identityCard) && (
                         <p className="text-xs text-slate-400">{selectedPatient.identityCard}</p>
                       )}
                     </div>

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import { Building2, Plus, X, Check } from 'lucide-react';
 import { Input } from './ui/input';
+import { getErrorMessage } from '../lib/utils';
 
 interface ClinicFieldProps {
   value: string;
@@ -41,8 +42,8 @@ export const ClinicField: React.FC<ClinicFieldProps> = ({ value, onValueChange }
       setNewName('');
       setShowAdd(false);
       setShowDrop(false);
-    } catch (err: any) {
-      alert(t('save_error_msg', { message: err.message }));
+    } catch (err) {
+      alert(t('save_error_msg', { message: getErrorMessage(err) }));
     }
   };
 

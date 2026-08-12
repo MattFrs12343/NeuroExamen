@@ -12,7 +12,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { ClinicField } from '../components/ClinicField';
-import { cn } from '../lib/utils';
+import { cn, getErrorMessage, hasIdentity } from '../lib/utils';
 
 interface CidEntry { codigo: string; descripcion: string; }
 interface LegacyCustomExam { id: string; name: string; category: string; categoryTitle?: string; }
@@ -125,6 +125,7 @@ export const NewOrder: React.FC = () => {
   // Prefill en modo edición
   useEffect(() => {
     if (activeOrderForEdit) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- prefills the whole form from the edit target; too many fields to safely move to render-phase
       setPatientId(activeOrderForEdit.patientId);
       const p = patients.find(p => p.id === activeOrderForEdit.patientId);
       if (p) setPatQuery(p.name);
@@ -157,7 +158,7 @@ export const NewOrder: React.FC = () => {
   const filteredPatients = useMemo(() => {
     if (!patQuery.trim()) return [];
     const q = patQuery.toLowerCase();
-    return patients.filter(p => p.name.toLowerCase().includes(q) || p.identityCard.includes(q));
+    return patients.filter(p => p.name.toLowerCase().includes(q) || (p.identityCard || '').includes(q));
   }, [patients, patQuery]);
 
   const searchedExams = useMemo(() => {
@@ -180,13 +181,13 @@ export const NewOrder: React.FC = () => {
       setSelectedExams(p => [...p, created.id]);
       setNewCustomExamName('');
       setExpanded(p => ({ ...p, cat_custom: true }));
-    } catch (e: any) { alert(t('save_error_msg', { message: e.message })); }
+    } catch (e) { alert(t('save_error_msg', { message: getErrorMessage(e) })); }
   };
   const handleDeleteCustomExam = async (id: string) => {
     try {
       await deleteCustomExam(id);
       setSelectedExams(p => p.filter(x => x !== id));
-    } catch (e: any) { alert(t('save_error_msg', { message: e.message })); }
+    } catch (e) { alert(t('save_error_msg', { message: getErrorMessage(e) })); }
   };
 
   const handleSave = async (print: boolean) => {
@@ -200,9 +201,9 @@ export const NewOrder: React.FC = () => {
       if (exact) { fPid = exact.id; }
       else {
         try {
-          const created = await addPatient({ name: patQuery.trim(), identityCard: `NA-${Date.now()}` });
+          const created = await addPatient({ name: patQuery.trim() });
           fPid = created.id;
-        } catch (e: any) { alert(t('save_error_msg', { message: e.message })); return; }
+        } catch (e) { alert(t('save_error_msg', { message: getErrorMessage(e) })); return; }
       }
     }
 
@@ -237,7 +238,7 @@ export const NewOrder: React.FC = () => {
       if (print) triggerDirectPrint(saved);
       else alert(isEdit ? t('new_order_success_edit') : t('new_order_success'));
       setCurrentView('orders');
-    } catch (e: any) { alert(t('save_error_msg', { message: e.message })); }
+    } catch (e) { alert(t('save_error_msg', { message: getErrorMessage(e) })); }
   };
 
   const handleCancel = () => { if (isEdit) setActiveOrderForEdit(null); setCurrentView('orders'); };
@@ -309,7 +310,7 @@ export const NewOrder: React.FC = () => {
                           <div>
                             <p className="text-sm font-semibold text-slate-900">{p.name}</p>
                             <p className="text-xs text-slate-400">
-                              {p.identityCard !== 'N/A' ? `DNI: ${p.identityCard}` : ''}
+                              {hasIdentity(p.identityCard) ? `DNI: ${p.identityCard}` : ''}
                               {p.age ? ` · ${p.age} ${t('years')}` : ''}
                             </p>
                           </div>
@@ -321,7 +322,7 @@ export const NewOrder: React.FC = () => {
                   {patientId && selectedPatient && (
                     <div className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
                       <CheckCircle2 size={13} strokeWidth={2.5} />
-                      {selectedPatient.name} — DNI: {selectedPatient.identityCard}
+                      {selectedPatient.name}{hasIdentity(selectedPatient.identityCard) ? ` — DNI: ${selectedPatient.identityCard}` : ''}
                     </div>
                   )}
                 </div>
@@ -600,7 +601,7 @@ export const NewOrder: React.FC = () => {
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-slate-900 leading-tight">{patQuery}</p>
-                      {patientId && selectedPatient && (
+                      {patientId && selectedPatient && hasIdentity(selectedPatient.identityCard) && (
                         <p className="text-xs text-slate-400">{selectedPatient.identityCard}</p>
                       )}
                     </div>

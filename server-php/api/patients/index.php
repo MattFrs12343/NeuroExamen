@@ -19,7 +19,7 @@ $patientId = ($lastPart !== 'patients' && $lastPart !== 'index.php') ? $lastPart
 // GET /api/patients
 // ------------------------------------------------------------------
 if ($method === 'GET' && !$patientId) {
-    $stmt = $pdo->query('SELECT id, name, identity_card AS identityCard, age FROM patients ORDER BY name ASC');
+    $stmt = $pdo->query('SELECT id, name, identity_card AS identityCard, age, origin, address FROM patients ORDER BY name ASC');
     echo json_encode($stmt->fetchAll());
     exit;
 }
@@ -32,19 +32,30 @@ if ($method === 'POST') {
     $name         = trim($body['name']         ?? '');
     $identityCard = trim($body['identityCard'] ?? '');
     $age          = isset($body['age']) && $body['age'] !== '' ? (int)$body['age'] : null;
+    $origin       = in_array($body['origin'] ?? null, ['neuromobius', 'neuroisbe'], true)
+                        ? $body['origin']
+                        : null;
+    $address      = trim($body['address'] ?? '');
+    $address      = $address !== '' ? $address : null;
 
-    if (!$name || !$identityCard) {
+    if (!$name) {
         http_response_code(400);
-        echo json_encode(['error' => 'Nombre e identificación son requeridos.']);
+        echo json_encode(['error' => 'El nombre es requerido.']);
         exit;
     }
 
-    $stmt = $pdo->prepare('SELECT id FROM patients WHERE identity_card = ?');
-    $stmt->execute([$identityCard]);
-    if ($stmt->fetch()) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Ya existe un paciente con ese documento.']);
-        exit;
+    // El documento es opcional; vacío / 'N/A' / placeholders 'NA-*' => NULL
+    $identityCard = in_array($identityCard, ['', 'N/A'], true) || str_starts_with($identityCard, 'NA-')
+        ? null : $identityCard;
+
+    if ($identityCard !== null) {
+        $stmt = $pdo->prepare('SELECT id FROM patients WHERE identity_card = ?');
+        $stmt->execute([$identityCard]);
+        if ($stmt->fetch()) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Ya existe un paciente con ese documento.']);
+            exit;
+        }
     }
 
     $id = sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
@@ -55,11 +66,11 @@ if ($method === 'POST') {
         mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
     );
 
-    $stmt = $pdo->prepare('INSERT INTO patients (id, name, identity_card, age) VALUES (?, ?, ?, ?)');
-    $stmt->execute([$id, $name, $identityCard, $age]);
+    $stmt = $pdo->prepare('INSERT INTO patients (id, name, identity_card, age, origin, address) VALUES (?, ?, ?, ?, ?, ?)');
+    $stmt->execute([$id, $name, $identityCard, $age, $origin, $address]);
 
     http_response_code(201);
-    echo json_encode(['id' => $id, 'name' => $name, 'identityCard' => $identityCard, 'age' => $age]);
+    echo json_encode(['id' => $id, 'name' => $name, 'identityCard' => $identityCard, 'age' => $age, 'origin' => $origin, 'address' => $address]);
     exit;
 }
 
@@ -71,11 +82,16 @@ if ($method === 'PUT' && $patientId) {
     $name         = trim($body['name']         ?? '');
     $identityCard = trim($body['identityCard'] ?? '');
     $age          = isset($body['age']) && $body['age'] !== '' ? (int)$body['age'] : null;
+    $address      = trim($body['address'] ?? '');
+    $address      = $address !== '' ? $address : null;
 
-    $stmt = $pdo->prepare('UPDATE patients SET name = ?, identity_card = ?, age = ? WHERE id = ?');
-    $stmt->execute([$name, $identityCard, $age, $patientId]);
+    $identityCard = in_array($identityCard, ['', 'N/A'], true) || str_starts_with($identityCard, 'NA-')
+        ? null : $identityCard;
 
-    echo json_encode(['id' => $patientId, 'name' => $name, 'identityCard' => $identityCard, 'age' => $age]);
+    $stmt = $pdo->prepare('UPDATE patients SET name = ?, identity_card = ?, age = ?, address = ? WHERE id = ?');
+    $stmt->execute([$name, $identityCard, $age, $address, $patientId]);
+
+    echo json_encode(['id' => $patientId, 'name' => $name, 'identityCard' => $identityCard, 'age' => $age, 'address' => $address]);
     exit;
 }
 

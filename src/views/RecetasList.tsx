@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { cn } from '../lib/utils';
+import { cn, getErrorMessage, hasIdentity } from '../lib/utils';
 
 const PAGE_SIZE = 15;
 
@@ -40,7 +40,7 @@ export const RecetasList: React.FC = () => {
   const filtered = useMemo(() => recetas.filter(r => {
     if (appliedPatient.trim()) {
       const q = appliedPatient.toLowerCase();
-      if (!r.patientName.toLowerCase().includes(q) && !r.patientIdentityCard.includes(q)) return false;
+      if (!r.patientName.toLowerCase().includes(q) && !(r.patientIdentityCard || '').includes(q)) return false;
     }
     if (appliedStart && (!r.date || r.date < appliedStart)) return false;
     if (appliedEnd   && (!r.date || r.date > appliedEnd))   return false;
@@ -68,7 +68,7 @@ export const RecetasList: React.FC = () => {
     try {
       await deleteReceta(id);
       if (selectedReceta?.id === id) setSelectedReceta(null);
-    } catch (err: any) { alert('Error: ' + err.message); }
+    } catch (err) { alert('Error: ' + getErrorMessage(err)); }
   };
 
   const getInitials = (name: string) =>
@@ -178,7 +178,7 @@ export const RecetasList: React.FC = () => {
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-slate-900">{receta.patientName}</p>
-                        <p className="text-xs text-slate-400">DNI: {receta.patientIdentityCard}</p>
+                        <p className="text-xs text-slate-400">{hasIdentity(receta.patientIdentityCard) ? `DNI: ${receta.patientIdentityCard}` : ''}</p>
                       </div>
                     </div>
                   </td>
@@ -317,7 +317,9 @@ export const RecetasList: React.FC = () => {
                   <div>
                     <p className="text-base font-bold text-slate-900">{selectedReceta.patientName}</p>
                     <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
-                      <span>DNI: <span className="font-semibold text-slate-700">{selectedReceta.patientIdentityCard}</span></span>
+                      {hasIdentity(selectedReceta.patientIdentityCard) && (
+                        <span>DNI: <span className="font-semibold text-slate-700">{selectedReceta.patientIdentityCard}</span></span>
+                      )}
                       <span className="text-slate-300">·</span>
                       <span>{selectedReceta.date || '—'}</span>
                     </div>
@@ -370,7 +372,7 @@ export const RecetasList: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-4 border-t border-slate-100 bg-slate-50/60 grid grid-cols-3 gap-2">
+            <div className="p-4 border-t border-slate-100 bg-slate-50/60 grid grid-cols-2 sm:grid-cols-3 gap-2">
               <Button variant="outline" size="sm"
                 onClick={() => { triggerDirectPrintReceta(selectedReceta); setSelectedReceta(null); }}>
                 <Printer size={14} /> {t('print')}
@@ -379,7 +381,7 @@ export const RecetasList: React.FC = () => {
                 onClick={() => { setActiveRecetaForEdit(selectedReceta); setCurrentView('new-receta'); setSelectedReceta(null); }}>
                 <Edit3 size={14} /> {t('edit')}
               </Button>
-              <Button variant="outline" size="sm" className="text-red-500 hover:bg-red-50 hover:border-red-200 border-red-200"
+              <Button variant="outline" size="sm" className="col-span-2 sm:col-span-1 text-red-500 hover:bg-red-50 hover:border-red-200 border-red-200"
                 onClick={() => handleDelete(selectedReceta.id, selectedReceta.patientName)}>
                 {t('delete')}
               </Button>

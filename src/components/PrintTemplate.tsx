@@ -28,7 +28,7 @@ const PrintPage: React.FC<PrintPageProps> = ({ order, formattedDate, entry, isLa
   return (
     <div
       style={{
-        fontFamily: 'Inter, Arial, sans-serif',
+        fontFamily: 'Arial, sans-serif',
         backgroundColor: '#fff',
         color: BLACK,
         padding: '20mm 22mm',
