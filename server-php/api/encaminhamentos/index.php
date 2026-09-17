@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../middleware/cors.php';
 require_once __DIR__ . '/../../middleware/auth.php';
+require_once __DIR__ . '/../../lib/signing.php';
 
 setCorsHeaders();
 header('Content-Type: application/json');
@@ -24,12 +25,21 @@ function formatEncaminhamento(array $row, array $specialistIds): array {
         'patientIdentityCard' => $row['patient_identity_card'],
         'date'             => $row['date'],
         'patientAge'       => $row['patient_age'] ?: null,
+        'patientPhone'     => $row['patient_phone'] ?: null,
         'hd'               => $row['hd']          ?: null,
         'motivo'           => $row['motivo']      ?: null,
-        'clinicName'       => $row['clinic_name'] ?: null,
+        'clinicName'       => $row['clinic_name']       ?: null,
+        'clinicSecretaria' => $row['clinic_secretaria'] ?: null,
+        'clinicSistema'    => $row['clinic_sistema']    ?: null,
+        'clinicAddress'    => $row['clinic_address']    ?: null,
+        'clinicPhone'      => $row['clinic_phone']      ?: null,
+        'clinicCnpj'       => $row['clinic_cnpj']       ?: null,
         'templateId'       => $row['template_id'] ?: 'neuromobius',
         'specialists'      => $specialistIds,
         'createdBy'        => $row['user_name'],
+        'token'            => $row['token']          ?: null,
+        'accessCode'       => $row['access_code']    ?: null,
+        'validationUrl'    => $row['validation_url'] ?: null,
     ];
 }
 
@@ -99,9 +109,15 @@ if ($method === 'POST') {
     $patientId     = $body['patientId']     ?? '';
     $date          = !empty($body['date']) ? $body['date'] : null;
     $patientAge    = $body['patientAge']    ?? null;
+    $patientPhone  = $body['patientPhone']  ?? null;
     $hd            = $body['hd']            ?? null;
     $motivo        = $body['motivo']        ?? null;
     $clinicName    = $body['clinicName']    ?? null;
+    $clinicSecretaria = $body['clinicSecretaria'] ?? null;
+    $clinicSistema = $body['clinicSistema'] ?? null;
+    $clinicAddress = $body['clinicAddress'] ?? null;
+    $clinicPhone   = $body['clinicPhone']   ?? null;
+    $clinicCnpj    = $body['clinicCnpj']    ?? null;
     $templateId    = in_array($body['templateId'] ?? null, ['neuromobius', 'neuroisbe'], true)
                          ? $body['templateId']
                          : 'neuromobius';
@@ -121,10 +137,17 @@ if ($method === 'POST') {
         $newId = 'ENC-' . date('Y') . '-' . str_pad((int)$row['seq'], 4, '0', STR_PAD_LEFT);
 
         $stmt = $pdo->prepare(
-            'INSERT INTO encaminhamentos (id, patient_id, user_id, date, patient_age, hd, motivo, clinic_name, template_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO encaminhamentos (
+                id, patient_id, user_id, date, patient_age, patient_phone, hd, motivo, clinic_name,
+                clinic_secretaria, clinic_sistema, clinic_address, clinic_phone, clinic_cnpj,
+                template_id
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$newId, $patientId, $userId, $date, $patientAge, $hd, $motivo, $clinicName, $templateId]);
+        $stmt->execute([
+            $newId, $patientId, $userId, $date, $patientAge, $patientPhone, $hd, $motivo, $clinicName,
+            $clinicSecretaria, $clinicSistema, $clinicAddress, $clinicPhone, $clinicCnpj,
+            $templateId,
+        ]);
 
         $pivot = $pdo->prepare('INSERT INTO encaminhamento_specialists (encaminhamento_id, specialist_id) VALUES (?, ?)');
         foreach ($specialistIds as $sid) {
@@ -138,6 +161,8 @@ if ($method === 'POST') {
         echo json_encode(['error' => 'Error al crear encaminhamento: ' . $e->getMessage()]);
         exit;
     }
+
+    generateVerificationInfo($pdo, 'encaminhamentos', 'encaminhamentos', $newId);
 
     $stmt = $pdo->prepare('
         SELECT e.*, p.name AS patient_name, p.identity_card AS patient_identity_card, u.name AS user_name
@@ -161,9 +186,15 @@ if ($method === 'PUT' && $encId) {
     $body          = json_decode(file_get_contents('php://input'), true) ?? [];
     $date          = !empty($body['date']) ? $body['date'] : null;
     $patientAge    = $body['patientAge']    ?? null;
+    $patientPhone  = $body['patientPhone']  ?? null;
     $hd            = $body['hd']            ?? null;
     $motivo        = $body['motivo']        ?? null;
     $clinicName    = $body['clinicName']    ?? null;
+    $clinicSecretaria = $body['clinicSecretaria'] ?? null;
+    $clinicSistema = $body['clinicSistema'] ?? null;
+    $clinicAddress = $body['clinicAddress'] ?? null;
+    $clinicPhone   = $body['clinicPhone']   ?? null;
+    $clinicCnpj    = $body['clinicCnpj']    ?? null;
     $templateId    = in_array($body['templateId'] ?? null, ['neuromobius', 'neuroisbe'], true)
                          ? $body['templateId']
                          : 'neuromobius';
@@ -178,9 +209,17 @@ if ($method === 'PUT' && $encId) {
     $pdo->beginTransaction();
     try {
         $upd = $pdo->prepare(
-            'UPDATE encaminhamentos SET date=?, patient_age=?, hd=?, motivo=?, clinic_name=?, template_id=? WHERE id=?'
+            'UPDATE encaminhamentos SET
+                date=?, patient_age=?, patient_phone=?, hd=?, motivo=?, clinic_name=?,
+                clinic_secretaria=?, clinic_sistema=?, clinic_address=?, clinic_phone=?, clinic_cnpj=?,
+                template_id=?
+             WHERE id=?'
         );
-        $upd->execute([$date, $patientAge, $hd, $motivo, $clinicName, $templateId, $encId]);
+        $upd->execute([
+            $date, $patientAge, $patientPhone, $hd, $motivo, $clinicName,
+            $clinicSecretaria, $clinicSistema, $clinicAddress, $clinicPhone, $clinicCnpj,
+            $templateId, $encId,
+        ]);
 
         $del = $pdo->prepare('DELETE FROM encaminhamento_specialists WHERE encaminhamento_id = ?');
         $del->execute([$encId]);

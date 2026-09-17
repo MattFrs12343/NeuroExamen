@@ -1,0 +1,10 @@
+# PDFs firmados guardados para el link público de verificación — nunca se
+# sirven directo por URL, solo a través de api/verificar/index.php tras
+# validar token+código de acceso.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../middleware/cors.php';
 require_once __DIR__ . '/../../middleware/auth.php';
+require_once __DIR__ . '/../../lib/signing.php';
 
 setCorsHeaders();
 header('Content-Type: application/json');
@@ -22,15 +23,24 @@ function formatOrder(array $row, array $examIds, ?array $examDescriptions, ?arra
         'patientId'        => $row['patient_id'],
         'patientName'      => $row['patient_name'],
         'patientIdentityCard' => $row['patient_identity_card'],
+        'patientPhone'     => $row['patient_phone']      ?: null,
         'date'             => $row['date'],
         'codeCID'          => $row['code_cid'],
-        'clinicName'       => $row['clinic_name']   ?: null,
+        'clinicName'       => $row['clinic_name']       ?: null,
+        'clinicSecretaria' => $row['clinic_secretaria'] ?: null,
+        'clinicSistema'    => $row['clinic_sistema']    ?: null,
+        'clinicAddress'    => $row['clinic_address']    ?: null,
+        'clinicPhone'      => $row['clinic_phone']      ?: null,
+        'clinicCnpj'       => $row['clinic_cnpj']       ?: null,
         'observations'     => $row['observations']  ?: null,
         'status'           => $row['status'],
         'exams'            => $examIds,
         'examDescriptions' => $examDescriptions ?: null,
         'customExams'      => $customExams      ?: null,
         'createdBy'        => $row['user_name'],
+        'token'            => $row['token']          ?: null,
+        'accessCode'       => $row['access_code']    ?: null,
+        'validationUrl'    => $row['validation_url'] ?: null,
     ];
 }
 
@@ -98,7 +108,9 @@ if ($method === 'GET' && !$orderId) {
 
     $sql = '
         SELECT
-            o.id, o.patient_id, o.user_id, o.date, o.code_cid, o.clinic_name,
+            o.id, o.patient_id, o.user_id, o.date, o.code_cid, o.patient_phone, o.clinic_name,
+            o.clinic_secretaria, o.clinic_sistema, o.clinic_address, o.clinic_phone, o.clinic_cnpj,
+            o.token, o.access_code, o.validation_url,
             o.observations, o.status, o.custom_exams, o.exam_descriptions, o.created_at,
             p.name AS patient_name, p.identity_card AS patient_identity_card,
             u.name AS user_name
@@ -133,7 +145,13 @@ if ($method === 'POST') {
     $patientId       = $body['patientId']       ?? '';
     $date            = $body['date']            ?? '';
     $codeCID         = $body['codeCID']         ?? '';
+    $patientPhone    = $body['patientPhone']    ?? null;
     $clinicName      = $body['clinicName']      ?? null;
+    $clinicSecretaria = $body['clinicSecretaria'] ?? null;
+    $clinicSistema   = $body['clinicSistema']   ?? null;
+    $clinicAddress   = $body['clinicAddress']   ?? null;
+    $clinicPhone     = $body['clinicPhone']     ?? null;
+    $clinicCnpj      = $body['clinicCnpj']      ?? null;
     $observations    = $body['observations']    ?? null;
     $status          = $body['status']          ?? 'Pendiente';
     $examIds         = $body['exams']           ?? [];
@@ -158,12 +176,16 @@ if ($method === 'POST') {
         upsertExams($pdo, $examIds, $customExams ?? []);
 
         $stmt = $pdo->prepare(
-            'INSERT INTO orders (id, patient_id, user_id, date, code_cid, clinic_name, observations, status, exam_descriptions, custom_exams)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO orders (
+                id, patient_id, user_id, date, code_cid, patient_phone, clinic_name,
+                clinic_secretaria, clinic_sistema, clinic_address, clinic_phone, clinic_cnpj,
+                observations, status, exam_descriptions, custom_exams
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
-            $newId, $patientId, $userId, $date, $codeCID,
-            $clinicName, $observations, $status,
+            $newId, $patientId, $userId, $date, $codeCID, $patientPhone,
+            $clinicName, $clinicSecretaria, $clinicSistema, $clinicAddress, $clinicPhone, $clinicCnpj,
+            $observations, $status,
             $examDescriptions ? json_encode($examDescriptions) : null,
             $customExams      ? json_encode($customExams)      : null,
         ]);
@@ -180,6 +202,10 @@ if ($method === 'POST') {
         echo json_encode(['error' => 'Error al crear pedido: ' . $e->getMessage()]);
         exit;
     }
+
+    // Link de verificación pública disponible desde la creación, no solo al
+    // firmar — así "Enviar por WhatsApp" siempre tiene algo que mandar.
+    generateVerificationInfo($pdo, 'orders', 'orders', $newId);
 
     // Fetch patient + user for response
     $stmt = $pdo->prepare('
@@ -204,7 +230,13 @@ if ($method === 'PUT' && $orderId) {
     $body            = json_decode(file_get_contents('php://input'), true) ?? [];
     $date            = $body['date']            ?? '';
     $codeCID         = $body['codeCID']         ?? '';
+    $patientPhone    = $body['patientPhone']    ?? null;
     $clinicName      = $body['clinicName']      ?? null;
+    $clinicSecretaria = $body['clinicSecretaria'] ?? null;
+    $clinicSistema   = $body['clinicSistema']   ?? null;
+    $clinicAddress   = $body['clinicAddress']   ?? null;
+    $clinicPhone     = $body['clinicPhone']     ?? null;
+    $clinicCnpj      = $body['clinicCnpj']      ?? null;
     $observations    = $body['observations']    ?? null;
     $status          = $body['status']          ?? 'Pendiente';
     $examIds         = $body['exams']           ?? [];
@@ -226,10 +258,16 @@ if ($method === 'PUT' && $orderId) {
         $del->execute([$orderId]);
 
         $upd = $pdo->prepare(
-            'UPDATE orders SET date=?, code_cid=?, clinic_name=?, observations=?, status=?, exam_descriptions=?, custom_exams=? WHERE id=?'
+            'UPDATE orders SET
+                date=?, code_cid=?, patient_phone=?, clinic_name=?,
+                clinic_secretaria=?, clinic_sistema=?, clinic_address=?, clinic_phone=?, clinic_cnpj=?,
+                observations=?, status=?, exam_descriptions=?, custom_exams=?
+             WHERE id=?'
         );
         $upd->execute([
-            $date, $codeCID, $clinicName, $observations, $status,
+            $date, $codeCID, $patientPhone, $clinicName,
+            $clinicSecretaria, $clinicSistema, $clinicAddress, $clinicPhone, $clinicCnpj,
+            $observations, $status,
             $examDescriptions ? json_encode($examDescriptions) : null,
             $customExams      ? json_encode($customExams)      : null,
             $orderId,

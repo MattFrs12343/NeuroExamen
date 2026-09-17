@@ -34,7 +34,7 @@ export const ClinicField: React.FC<ClinicFieldProps> = ({ value, onValueChange }
   }, []);
 
   const handleAdd = async () => {
-    const name = newName.trim();
+    const name = newName.trim().toLocaleUpperCase();
     if (!name) return;
     try {
       const added = await addClinic(name);
@@ -101,7 +101,7 @@ export const ClinicField: React.FC<ClinicFieldProps> = ({ value, onValueChange }
           <Input className="h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50"
             placeholder={t('clinic_add_placeholder')}
             value={newName}
-            onChange={e => setNewName(e.target.value)}
+            onChange={e => setNewName(e.target.value.toLocaleUpperCase())}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
             autoComplete="off" />
           <button type="button" onClick={handleAdd}

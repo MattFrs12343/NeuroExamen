@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
-import { PlusCircle, Search, X, User, Users, AlertCircle } from 'lucide-react';
+import { PlusCircle, Search, X, User, Users, AlertCircle, Pencil } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -9,10 +9,11 @@ import { getErrorMessage, hasIdentity } from '../lib/utils';
 
 export const Patients: React.FC = () => {
   const { t } = useTranslation();
-  const { patients, addPatient } = useApp();
+  const { patients, addPatient, updatePatient } = useApp();
 
   const [query,      setQuery]     = useState('');
   const [showModal,  setModal]     = useState(false);
+  const [editingId,  setEditingId] = useState<string | null>(null);
   const [name,       setName]      = useState('');
   const [dni,        setDni]       = useState('');
   const [age,        setAge]       = useState('');
@@ -27,14 +28,57 @@ export const Patients: React.FC = () => {
 
   const initials = (n: string) => n.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
+  const closeModal = () => {
+    setModal(false);
+    setEditingId(null);
+    setName(''); setDni(''); setAge('');
+    setError('');
+  };
+
+  const openAdd = () => {
+    setEditingId(null);
+    setName(''); setDni(''); setAge('');
+    setError('');
+    setModal(true);
+  };
+
+  const openEdit = (p: typeof patients[number]) => {
+    setEditingId(p.id);
+    setName(p.name);
+    setDni(p.identityCard || '');
+    setAge(p.age != null ? String(p.age) : '');
+    setError('');
+    setModal(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!name.trim() || !dni.trim()) { setError(t('pat_modal_error_req')); return; }
+    // Al editar, el DNI puede quedar vacío (es opcional en la ficha); al
+    // registrar uno nuevo se mantiene la exigencia de nombre + DNI.
+    if (!name.trim() || (!editingId && !dni.trim())) { setError(t('pat_modal_error_req')); return; }
+    const wasEditing = !!editingId;
     try {
-      await addPatient({ name: name.trim(), identityCard: dni.trim(), age: age ? parseInt(age) : undefined });
+      if (editingId) {
+        const current = patients.find(p => p.id === editingId);
+        if (!current) { setError('Paciente no encontrado.'); return; }
+        // Preserva los campos que este modal no toca (address, origin) para no
+        // borrarlos al guardar solo nombre/DNI/edad.
+        await updatePatient({
+          ...current,
+          name: name.trim(),
+          identityCard: dni.trim() || undefined,
+          age: age ? parseInt(age) : undefined,
+        });
+      } else {
+        await addPatient({ name: name.trim(), identityCard: dni.trim(), age: age ? parseInt(age) : undefined });
+      }
       setName(''); setDni(''); setAge('');
+      setEditingId(null);
       setModal(false);
+      // Confirmación visible: sin esto el modal se cerraba en silencio y no
+      // quedaba claro si el cambio se había guardado.
+      alert(t(wasEditing ? 'pat_edit_success' : 'pat_save_success'));
     } catch (err) {
       setError(getErrorMessage(err) || 'Error al registrar paciente.');
     }
@@ -50,7 +94,7 @@ export const Patients: React.FC = () => {
           <p className="text-sm text-slate-500 mt-1">{t('pat_subtitle')}</p>
         </div>
         <Button
-          onClick={() => setModal(true)}
+          onClick={openAdd}
           className="self-start sm:self-auto bg-[#0F4C81] hover:bg-[#0a3a63] shadow-sm hover:shadow-md transition-all"
         >
           <PlusCircle size={16} strokeWidth={2} />
@@ -79,7 +123,7 @@ export const Patients: React.FC = () => {
       {/* ── Table ──────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-premium overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="w-full text-left data-table">
             <thead>
               <tr className="border-b border-slate-100">
                 {[t('pat_col_name'), t('pat_col_dni'), t('pat_col_age')].map(h => (
@@ -107,13 +151,23 @@ export const Patients: React.FC = () => {
                   </td>
                 </tr>
               ) : filtered.map(p => (
-                <tr key={p.id} className="hover:bg-slate-50/80 transition-colors group">
+                // Toda la fila es clickeable para editar — así el acceso no
+                // depende de un botón en la última columna (que en tablet/
+                // pantalla angosta quedaba fuera de vista por el scroll
+                // horizontal). El lápiz junto al nombre (primera columna,
+                // siempre visible) es la pista visual.
+                <tr key={p.id} onClick={() => openEdit(p)}
+                  className="hover:bg-[#0F4C81]/5 transition-colors group cursor-pointer">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-[#0F4C81]/10 text-[#0F4C81] flex items-center justify-center text-xs font-bold shrink-0">
                         {initials(p.name)}
                       </div>
                       <p className="text-sm font-semibold text-slate-900 whitespace-nowrap">{p.name}</p>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0F4C81] bg-[#0F4C81]/8 border border-[#0F4C81]/20 rounded-lg px-2 py-1 shrink-0">
+                        <Pencil size={12} strokeWidth={2.5} />
+                        {t('edit')}
+                      </span>
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -149,7 +203,7 @@ export const Patients: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-slate-900/25 backdrop-blur-sm animate-fade-in"
-            onClick={() => setModal(false)}
+            onClick={closeModal}
           />
           <div className="relative w-full max-w-md z-10 bg-white rounded-2xl shadow-premium-lg border border-slate-200/60 overflow-hidden animate-scale-in">
 
@@ -159,10 +213,10 @@ export const Patients: React.FC = () => {
                 <div className="p-2.5 rounded-xl bg-[#0F4C81]/8 border border-[#0F4C81]/15">
                   <User size={16} className="text-[#0F4C81]" />
                 </div>
-                <h3 className="text-base font-bold text-slate-900">{t('pat_modal_title')}</h3>
+                <h3 className="text-base font-bold text-slate-900">{editingId ? t('pat_edit_title') : t('pat_modal_title')}</h3>
               </div>
               <button
-                onClick={() => setModal(false)}
+                onClick={closeModal}
                 className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
               >
                 <X size={16} />
@@ -213,7 +267,7 @@ export const Patients: React.FC = () => {
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={() => setModal(false)}
+                    onClick={closeModal}
                     className="hover:bg-slate-100"
                   >
                     {t('cancel')}

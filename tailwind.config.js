@@ -76,19 +76,19 @@ export default {
         },
         fadeIn: {
           from: { opacity: '0', transform: 'translateY(8px)' },
-          to:   { opacity: '1', transform: 'translateY(0)' },
+          to:   { opacity: '1', transform: 'none' },
         },
         slideIn: {
           from: { opacity: '0', transform: 'translateX(100%)' },
-          to:   { opacity: '1', transform: 'translateX(0)' },
+          to:   { opacity: '1', transform: 'none' },
         },
         slideInLeft: {
           from: { opacity: '0', transform: 'translateX(-100%)' },
-          to:   { opacity: '1', transform: 'translateX(0)' },
+          to:   { opacity: '1', transform: 'none' },
         },
         scaleIn: {
           from: { opacity: '0', transform: 'scale(0.95)' },
-          to:   { opacity: '1', transform: 'scale(1)' },
+          to:   { opacity: '1', transform: 'none' },
         },
         shimmer: {
           '0%': { backgroundPosition: '-1000px 0' },

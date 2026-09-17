@@ -6,13 +6,17 @@ import {
   User, Search, Calendar, Hash, Check,
   ChevronDown, ChevronUp, ArrowLeft, X,
   FileCheck2, PlusCircle,
-  MessageSquare, ClipboardList, CheckCircle2,
+  MessageSquare, ClipboardList, CheckCircle2, FileSignature,
 } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Textarea } from '../components/ui/textarea';
-import { ClinicField } from '../components/ClinicField';
-import { cn, getErrorMessage, hasIdentity } from '../lib/utils';
+import { RichTextField } from '../components/ui/rich-text-field';
+import { ExpandableRichField } from '../components/ExpandableRichField';
+import { isRichTextEmpty } from '../lib/richText';
+import { ClinicProfileField } from '../components/ClinicProfileField';
+import { cn, findPatientsByExactName, getErrorMessage, hasIdentity } from '../lib/utils';
+import { EditPatientNameButton } from '../components/EditPatientNameButton';
+import { findClinicProfile } from '../lib/clinic';
 
 interface CidEntry { codigo: string; descripcion: string; }
 interface LegacyCustomExam { id: string; name: string; category: string; categoryTitle?: string; }
@@ -65,14 +69,16 @@ export const NewOrder: React.FC = () => {
   const {
     patients, exams, addOrder, updateOrder, addPatient,
     setCurrentView, activeOrderForEdit, setActiveOrderForEdit,
-    triggerDirectPrint, currentUser,
-    lastClinicName, setLastClinicName,
+    triggerDirectPrint, triggerSignAndPrint, currentUser,
+    lastClinicName, setLastClinicName, clinicProfiles,
     customExamsCatalog, addCustomExam, deleteCustomExam,
+    getLastKnownPatientPhone,
   } = useApp();
 
   const isEdit = !!activeOrderForEdit;
 
   const [patientId,        setPatientId]        = useState('');
+  const [patientPhone,     setPatientPhone]     = useState('');
   const [orderDate,        setOrderDate]        = useState('');
   const [codeCID,          setCodeCID]          = useState('');
   const [clinicName,       setClinicName]       = useState(lastClinicName);
@@ -129,6 +135,7 @@ export const NewOrder: React.FC = () => {
       setPatientId(activeOrderForEdit.patientId);
       const p = patients.find(p => p.id === activeOrderForEdit.patientId);
       if (p) setPatQuery(p.name);
+      setPatientPhone(activeOrderForEdit.patientPhone || getLastKnownPatientPhone(activeOrderForEdit.patientId));
       setOrderDate(activeOrderForEdit.date);
       setCodeCID(activeOrderForEdit.codeCID);
       setClinicName(activeOrderForEdit.clinicName || '');
@@ -142,8 +149,24 @@ export const NewOrder: React.FC = () => {
       setOrderDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`);
       setOrderStatus('Concluido');
       setLegacyCustomExams({});
+      setPatientPhone('');
     }
-  }, [activeOrderForEdit, patients]);
+  }, [activeOrderForEdit, patients, getLastKnownPatientPhone]);
+
+  // Derivados en vivo del perfil de la clínica seleccionada — mismo patrón
+  // que NewAtestado.tsx/NewReceta.tsx (antes Pedidos sólo guardaba el
+  // nombre de la clínica como texto libre, sin dirección/teléfono/CNPJ).
+  const selectedClinicProfile = useMemo(
+    () => findClinicProfile(clinicProfiles, clinicName),
+    [clinicName, clinicProfiles]
+  );
+  const clinicSecretaria = selectedClinicProfile?.secretaria || '';
+  const clinicSistema    = selectedClinicProfile?.sistema    || '';
+  const clinicAddress    = selectedClinicProfile?.address    || '';
+  const clinicPhone      = selectedClinicProfile?.phone      || '';
+  const clinicCnpj       = selectedClinicProfile?.cnpj       || '';
+
+  const handleSelectClinic = (name: string) => { setClinicName(name); setLastClinicName(name); };
 
   const examsByCategory = useMemo(() => {
     const g: Record<string, Exam[]> = {};
@@ -190,15 +213,18 @@ export const NewOrder: React.FC = () => {
     } catch (e) { alert(t('save_error_msg', { message: getErrorMessage(e) })); }
   };
 
-  const handleSave = async (print: boolean) => {
+  const [signing, setSigning] = useState(false);
+
+  const handleSave = async (action: 'save' | 'print' | 'sign-print') => {
     if (!patQuery.trim())      { alert(t('new_order_validation_pat'));   return; }
     if (!orderDate)            { alert(t('new_order_validation_date'));  return; }
     if (!selectedExams.length) { alert(t('new_order_validation_exams')); return; }
 
     let fPid = patientId;
     if (!fPid) {
-      const exact = patients.find(p => p.name.toLowerCase() === patQuery.toLowerCase());
-      if (exact) { fPid = exact.id; }
+      const matches = findPatientsByExactName(patients, patQuery);
+      if (matches.length > 1) { alert(t('patient_ambiguous_match')); return; }
+      if (matches.length === 1) { fPid = matches[0].id; }
       else {
         try {
           const created = await addPatient({ name: patQuery.trim() });
@@ -220,8 +246,14 @@ export const NewOrder: React.FC = () => {
     const payload = {
       patientId: fPid, date: orderDate,
       codeCID: codeCID.trim().toUpperCase(),
+      patientPhone: patientPhone.trim() || undefined,
       clinicName: clinicName.trim() || undefined,
-      observations: observations.trim() || undefined,
+      clinicSecretaria: clinicSecretaria.trim() || undefined,
+      clinicSistema: clinicSistema.trim() || undefined,
+      clinicAddress: clinicAddress.trim() || undefined,
+      clinicPhone: clinicPhone.trim() || undefined,
+      clinicCnpj: clinicCnpj.trim() || undefined,
+      observations: isRichTextEmpty(observations) ? undefined : observations,
       status: orderStatus, exams: selectedExams,
       examDescriptions: Object.keys(examDescriptions).length ? examDescriptions : undefined,
       customExams: Object.keys(customRecord).length ? customRecord : undefined,
@@ -235,8 +267,20 @@ export const NewOrder: React.FC = () => {
       } else {
         saved = await addOrder(payload);
       }
-      if (print) triggerDirectPrint(saved);
-      else alert(isEdit ? t('new_order_success_edit') : t('new_order_success'));
+      if (action === 'print') {
+        triggerDirectPrint(saved);
+      } else if (action === 'sign-print') {
+        setSigning(true);
+        try {
+          await triggerSignAndPrint('order', saved);
+        } catch (e) {
+          alert(t('sign_pdf_error', { message: getErrorMessage(e) }));
+        } finally {
+          setSigning(false);
+        }
+      } else {
+        alert(isEdit ? t('new_order_success_edit') : t('new_order_success'));
+      }
       setCurrentView('orders');
     } catch (e) { alert(t('save_error_msg', { message: getErrorMessage(e) })); }
   };
@@ -278,15 +322,16 @@ export const NewOrder: React.FC = () => {
                   <div className="relative">
                     <Search size={16} strokeWidth={1.75} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                     <Input
-                      className="pl-10 pr-8 h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50"
+                      className={`pl-10 pr-8 h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50 ${isEdit ? 'cursor-not-allowed text-slate-500' : ''}`}
                       placeholder={t('new_order_pat_search')}
                       value={patQuery}
+                      readOnly={isEdit}
                       onChange={e => { setPatQuery(e.target.value); setPatientId(''); setShowPatDrop(true); }}
-                      onFocus={() => { if (patQuery.trim()) setShowPatDrop(true); }}
+                      onFocus={() => { if (!isEdit && patQuery.trim()) setShowPatDrop(true); }}
                       onBlur={() => setTimeout(() => setShowPatDrop(false), 150)}
                       autoComplete="off"
                     />
-                    {patQuery && (
+                    {patQuery && !isEdit && (
                       <button type="button"
                         onMouseDown={e => { e.preventDefault(); setPatQuery(''); setPatientId(''); setShowPatDrop(false); }}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -302,7 +347,7 @@ export const NewOrder: React.FC = () => {
                       </p>
                       {filteredPatients.map(p => (
                         <button key={p.id} type="button"
-                          onMouseDown={e => { e.preventDefault(); setPatientId(p.id); setPatQuery(p.name); setShowPatDrop(false); }}
+                          onMouseDown={e => { e.preventDefault(); setPatientId(p.id); setPatQuery(p.name); setShowPatDrop(false); setPatientPhone(prev => prev.trim() ? prev : getLastKnownPatientPhone(p.id)); }}
                           className="flex items-center gap-3 text-left w-full px-4 py-3 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0">
                           <div className="w-8 h-8 rounded-lg bg-[#0F4C81]/10 text-[#0F4C81] flex items-center justify-center text-xs font-bold shrink-0">
                             {p.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
@@ -320,10 +365,13 @@ export const NewOrder: React.FC = () => {
                   )}
 
                   {patientId && selectedPatient && (
-                    <div className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
-                      <CheckCircle2 size={13} strokeWidth={2.5} />
-                      {selectedPatient.name}{hasIdentity(selectedPatient.identityCard) ? ` — DNI: ${selectedPatient.identityCard}` : ''}
-                    </div>
+                    <>
+                      <div className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
+                        <CheckCircle2 size={13} strokeWidth={2.5} />
+                        {selectedPatient.name}{hasIdentity(selectedPatient.identityCard) ? ` — DNI: ${selectedPatient.identityCard}` : ''}
+                      </div>
+                      <EditPatientNameButton patientId={patientId} onRenamed={setPatQuery} />
+                    </>
                   )}
                 </div>
 
@@ -337,6 +385,15 @@ export const NewOrder: React.FC = () => {
                       value={orderDate} onChange={e => setOrderDate(e.target.value)} />
                   </div>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  {t('patient_phone_label')} <span className="text-slate-400 font-normal">({t('optional')})</span>
+                </label>
+                <Input type="tel" className="h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50"
+                  placeholder={t('patient_phone_placeholder')}
+                  value={patientPhone} onChange={e => setPatientPhone(e.target.value)} />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -403,7 +460,21 @@ export const NewOrder: React.FC = () => {
                 <label className="block text-xs font-semibold text-slate-700 mb-2">
                   Clínica / Institución <span className="text-slate-400 font-normal">({t('optional')})</span>
                 </label>
-                <ClinicField value={clinicName} onValueChange={v => { setClinicName(v); setLastClinicName(v); }} />
+                <ClinicProfileField
+                  options={clinicProfiles}
+                  value={clinicName}
+                  onValueChange={handleSelectClinic}
+                />
+                {clinicName && (
+                  <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4 text-xs text-slate-600 space-y-1">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t('receta_clinic_preview_title')}</p>
+                    {clinicSecretaria && <p>{clinicSecretaria}</p>}
+                    {clinicSistema && <p>{clinicSistema}</p>}
+                    {clinicAddress && <p className="whitespace-pre-line">{clinicAddress}</p>}
+                    {clinicPhone && <p className="whitespace-pre-line"><strong className="font-semibold text-slate-700">Tel:</strong> {clinicPhone}</p>}
+                    {clinicCnpj && <p><strong className="font-semibold text-slate-700">CNPJ:</strong> {clinicCnpj}</p>}
+                  </div>
+                )}
               </div>
 
               {/* Observaciones */}
@@ -411,12 +482,12 @@ export const NewOrder: React.FC = () => {
                 <label className="block text-xs font-semibold text-slate-700 mb-2">
                   {t('observations')} <span className="text-slate-400 font-normal">({t('optional')})</span>
                 </label>
-                <Textarea
-                  rows={2}
-                  className="border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50 resize-none"
-                  placeholder={t('new_order_obs_placeholder')}
+                <ExpandableRichField
                   value={observations}
-                  onChange={e => setObservations(e.target.value)}
+                  onChange={setObservations}
+                  placeholder={t('new_order_obs_placeholder')}
+                  modalTitle={t('observations')}
+                  style={{ minHeight: '58px' }}
                 />
               </div>
             </div>
@@ -499,11 +570,12 @@ export const NewOrder: React.FC = () => {
                           <Label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
                             <MessageSquare size={12} /> {t('custom_exam_obs_label')}
                           </Label>
-                          <Textarea rows={2}
-                            className="mt-1.5 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50 resize-none"
+                          <RichTextField
+                            className="mt-1.5 border border-slate-200 bg-slate-50/50 focus-within:bg-white focus-within:border-[#0F4C81]/50 transition-colors"
                             placeholder={t('custom_exam_obs_placeholder')}
                             value={examDescriptions[cat] || ''}
-                            onChange={e => setExamDescriptions(p => ({ ...p, [cat]: e.target.value }))} />
+                            onChange={html => setExamDescriptions(p => ({ ...p, [cat]: html }))}
+                            style={{ minHeight: '58px' }} />
                         </div>
                       </div>
                     )}
@@ -568,11 +640,12 @@ export const NewOrder: React.FC = () => {
                           <Label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 mt-1">
                             <MessageSquare size={12} /> {t('custom_exam_obs_label')}
                           </Label>
-                          <Textarea rows={2}
-                            className="mt-1.5 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50 resize-none"
+                          <RichTextField
+                            className="mt-1.5 border border-slate-200 bg-slate-50/50 focus-within:bg-white focus-within:border-[#0F4C81]/50 transition-colors"
                             placeholder={t('custom_exam_obs_placeholder')}
                             value={examDescriptions['cat_custom'] || ''}
-                            onChange={e => setExamDescriptions(p => ({ ...p, cat_custom: e.target.value }))} />
+                            onChange={html => setExamDescriptions(p => ({ ...p, cat_custom: html }))}
+                            style={{ minHeight: '58px' }} />
                         </div>
                       </div>
                     )}
@@ -584,7 +657,7 @@ export const NewOrder: React.FC = () => {
         </div>
 
         {/* ── Columna derecha — Resumen sticky ─────────────────────────── */}
-        <div className="lg:col-span-1 lg:sticky lg:top-20 space-y-4">
+        <div className="lg:col-span-1 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto space-y-4">
 
           {/* Panel resumen */}
           <PanelCard>
@@ -677,7 +750,7 @@ export const NewOrder: React.FC = () => {
           <div className="space-y-2">
             <button
               type="button"
-              onClick={() => handleSave(false)}
+              onClick={() => handleSave('save')}
               className="flex items-center justify-center gap-2 w-full h-12 rounded-xl bg-[#0F4C81] hover:bg-[#0a3a63] text-white text-sm font-bold shadow-sm hover:shadow-md transition-all"
             >
               <Check size={17} strokeWidth={2.5} />
@@ -685,10 +758,19 @@ export const NewOrder: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => handleSave(true)}
+              onClick={() => handleSave('print')}
               className="flex items-center justify-center gap-2 w-full h-11 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-sm font-semibold transition-all"
             >
               {t('save_and_print')}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSave('sign-print')}
+              disabled={signing}
+              className="flex items-center justify-center gap-2 w-full h-11 rounded-xl bg-[#0F4C81] hover:bg-[#0a3a63] text-white text-sm font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-50"
+            >
+              <FileSignature size={16} className={signing ? 'animate-pulse' : ''} />
+              {signing ? t('sign_print_loading') : t('save_sign_print')}
             </button>
             <button
               type="button"

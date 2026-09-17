@@ -4,13 +4,19 @@ import { useApp } from '../context/AppContext';
 import type { Encaminhamento } from '../types';
 import {
   PlusCircle, Search, Calendar, Filter, RefreshCw,
-  Edit3, Printer, X, Stethoscope, User,
-  ChevronLeft, ChevronRight, Activity, Eye, Trash2, FileText, Building2,
+  Edit3, Printer, Stethoscope, User,
+  ChevronLeft, ChevronRight, Activity, Eye, Trash2, FileText, Building2, Phone,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { WhatsAppIcon } from '../components/icons/WhatsAppIcon';
+import { RichText } from '../components/RichText';
+import { DetailDrawer } from '../components/DetailDrawer';
+import { PrintOptionsModal } from '../components/PrintOptionsModal';
 import { encUi, getEncProfile, withAlpha } from '../data/encaminhamentoProfiles';
 import { cn, getErrorMessage, hasIdentity } from '../lib/utils';
+import { isoToBRDate } from '../lib/dates';
+import { openWhatsApp, buildDocumentWhatsAppMessage, stripDoctorPrefix } from '../lib/whatsapp';
 
 const PAGE_SIZE = 15;
 
@@ -32,7 +38,7 @@ export const EncaminhamentosList: React.FC = () => {
   const { t } = useTranslation();
   const {
     encaminhamentos, specialistsCatalog, setCurrentView,
-    triggerDirectPrintEncaminhamento, deleteEncaminhamento, setActiveEncaminhamentoForEdit,
+    triggerDirectPrintEncaminhamento, triggerSignAndPrint, deleteEncaminhamento, setActiveEncaminhamentoForEdit,
     activeEncProfile,
   } = useApp();
 
@@ -93,6 +99,31 @@ export const EncaminhamentosList: React.FC = () => {
       await deleteEncaminhamento(id);
       if (selectedEnc?.id === id) setSelectedEnc(null);
     } catch (err) { alert('Error: ' + getErrorMessage(err)); }
+  };
+
+  const [signingId, setSigningId] = useState<string | null>(null);
+  const [printTarget, setPrintTarget] = useState<Encaminhamento | null>(null);
+
+  const handleSignPrint = async (enc: Encaminhamento) => {
+    setSigningId(enc.id);
+    try {
+      await triggerSignAndPrint('encaminhamento', enc);
+    } catch (err) { alert(t('sign_pdf_error', { message: getErrorMessage(err) })); }
+    finally { setSigningId(null); }
+  };
+
+  const handleSendWhatsApp = (enc: Encaminhamento, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!enc.patientPhone?.trim()) { alert(t('whatsapp_phone_required')); return; }
+    const message = buildDocumentWhatsAppMessage({
+      patientName: enc.patientName,
+      docTypeLabel: 'seu encaminhamento médico',
+      doctorName: stripDoctorPrefix(enc.createdBy),
+      validationUrl: enc.validationUrl,
+      token: enc.token,
+      accessCode: enc.accessCode,
+    });
+    if (openWhatsApp(enc.patientPhone, message) === 'invalid-phone') { alert(t('whatsapp_phone_invalid')); return; }
   };
 
   const getInitials = (name: string) =>
@@ -164,8 +195,8 @@ export const EncaminhamentosList: React.FC = () => {
 
       {/* ── Table ──────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-premium overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
+        <div className="hidden xl:block overflow-x-auto">
+          <table className="w-full text-left data-table">
             <thead>
               <tr className="border-b border-slate-100">
                 {[t('pat_col_name'), t('date'), t('encaminhamento_hd_label'), t('encaminhamento_col_specialists'), t('ord_col_doctor'), t('enc_doc_col'), t('actions')].map((h, i) => (
@@ -209,7 +240,7 @@ export const EncaminhamentosList: React.FC = () => {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <Calendar size={13} className="text-slate-300" />
-                      <span className="text-sm font-medium text-slate-600 whitespace-nowrap">{enc.date || '—'}</span>
+                      <span className="text-sm font-medium text-slate-600 whitespace-nowrap">{isoToBRDate(enc.date) || '—'}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -253,10 +284,17 @@ export const EncaminhamentosList: React.FC = () => {
                       </button>
                       <button
                         title={t('print')}
-                        onClick={e => { e.stopPropagation(); triggerDirectPrintEncaminhamento(enc); }}
+                        onClick={e => { e.stopPropagation(); setPrintTarget(enc); }}
                         className="p-2 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all"
                       >
                         <Printer size={15} />
+                      </button>
+                      <button
+                        title={t('whatsapp_send_btn')}
+                        onClick={e => handleSendWhatsApp(enc, e)}
+                        className="p-2 rounded-lg text-slate-400 hover:text-[#25D366] hover:bg-[#25D366]/8 transition-all"
+                      >
+                        <WhatsAppIcon size={15} />
                       </button>
                       <button
                         title={t('delete')}
@@ -271,6 +309,82 @@ export const EncaminhamentosList: React.FC = () => {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* ── Mobile cards ─────────────────────────────────────────────── */}
+        <div className="xl:hidden divide-y divide-slate-100">
+          {paged.length === 0 ? (
+            <div className="px-6 py-16 text-center">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
+                  <Stethoscope size={24} className="text-slate-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-600">{t('encaminhamentos_no_found')}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Ajusta los filtros o crea un nuevo encaminhamento</p>
+                </div>
+              </div>
+            </div>
+          ) : paged.map(enc => (
+            <div key={enc.id} className="p-4 active:bg-slate-50" onClick={() => setSelectedEnc(enc)}>
+              <div className="flex items-start gap-3">
+                <div className={`w-11 h-11 rounded-xl ${ui.avatar} text-sm font-bold flex items-center justify-center shrink-0`}>
+                  {getInitials(enc.patientName)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-900 leading-snug">{enc.patientName}</p>
+                    <ClinicBadge templateId={enc.templateId} />
+                  </div>
+                  <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-slate-400">
+                    <span className="inline-flex items-center gap-1"><Calendar size={11} />{isoToBRDate(enc.date) || '—'}</span>
+                    {hasIdentity(enc.patientIdentityCard) && <span>DNI: {enc.patientIdentityCard}</span>}
+                    <span className="inline-flex items-center gap-1"><Stethoscope size={11} />{enc.specialists.length}</span>
+                    {enc.hd && <span className="truncate max-w-[160px]">{enc.hd}</span>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions row — full-width, evenly divided touch targets */}
+              <div className="flex items-stretch gap-1.5 mt-3 pt-3 border-t border-slate-100" onClick={e => e.stopPropagation()}>
+                <button
+                  aria-label={t('ord_tooltip_view')}
+                  onClick={() => setSelectedEnc(enc)}
+                  className="flex-1 flex items-center justify-center py-2.5 rounded-xl text-slate-500 bg-slate-50 active:bg-slate-200 transition-colors"
+                >
+                  <Eye size={18} />
+                </button>
+                <button
+                  aria-label={t('edit')}
+                  onClick={() => { setActiveEncaminhamentoForEdit(enc); setCurrentView('new-encaminhamento'); }}
+                  className="flex-1 flex items-center justify-center py-2.5 rounded-xl text-slate-500 bg-slate-50 active:bg-slate-200 transition-colors"
+                >
+                  <Edit3 size={18} />
+                </button>
+                <button
+                  aria-label={t('print')}
+                  onClick={() => setPrintTarget(enc)}
+                  className="flex-1 flex items-center justify-center py-2.5 rounded-xl text-slate-500 bg-slate-50 active:bg-emerald-100 active:text-emerald-600 transition-colors"
+                >
+                  <Printer size={18} />
+                </button>
+                <button
+                  aria-label={t('whatsapp_send_btn')}
+                  onClick={() => handleSendWhatsApp(enc)}
+                  className="flex-1 flex items-center justify-center py-2.5 rounded-xl text-slate-500 bg-slate-50 active:bg-[#25D366]/15 active:text-[#25D366] transition-colors"
+                >
+                  <WhatsAppIcon size={18} />
+                </button>
+                <button
+                  aria-label={t('delete')}
+                  onClick={() => handleDelete(enc.id, enc.patientName)}
+                  className="flex-1 flex items-center justify-center py-2.5 rounded-xl text-slate-500 bg-slate-50 active:bg-red-100 active:text-red-500 transition-colors"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Pagination */}
@@ -309,29 +423,32 @@ export const EncaminhamentosList: React.FC = () => {
 
       {/* ── Detail Drawer ───────────────────────────────────────────────── */}
       {selectedEnc && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-slate-900/25 backdrop-blur-sm" onClick={() => setSelectedEnc(null)} />
-          <div className="relative w-full max-w-lg bg-white h-full shadow-premium-lg flex flex-col animate-slide-in">
-
-            <div className="px-6 py-5 border-b border-slate-100">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2.5 rounded-xl ${ui.iconBox}`}>
-                    <Stethoscope size={18} className={ui.iconCls} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mb-0.5">{t('encaminhamentos_details_title')}</p>
-                    <p className="text-lg font-bold text-slate-900 tracking-tight">#{selectedEnc.id}</p>
-                  </div>
-                </div>
-                <button onClick={() => setSelectedEnc(null)}
-                  className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <DetailDrawer
+          open={true}
+          onClose={() => setSelectedEnc(null)}
+          icon={<Stethoscope size={18} className={ui.iconCls} />}
+          iconBoxClassName={ui.iconBox}
+          eyebrow={t('encaminhamentos_details_title')}
+          title={`#${selectedEnc.id}`}
+          footer={<>
+            <Button variant="outline" size="sm"
+              onClick={() => { setPrintTarget(selectedEnc); setSelectedEnc(null); }}>
+              <Printer size={14} /> {t('print')}
+            </Button>
+            <Button variant="outline" size="sm" className="text-[#25D366] hover:bg-[#25D366]/8 hover:border-[#25D366]/30 border-[#25D366]/20"
+              onClick={() => handleSendWhatsApp(selectedEnc)}>
+              <WhatsAppIcon size={14} /> {t('whatsapp_send_btn')}
+            </Button>
+            <Button size="sm" className={ui.solidBtn}
+              onClick={() => { setActiveEncaminhamentoForEdit(selectedEnc); setCurrentView('new-encaminhamento'); setSelectedEnc(null); }}>
+              <Edit3 size={14} /> {t('edit')}
+            </Button>
+            <Button variant="outline" size="sm" className="text-red-500 hover:bg-red-50 hover:border-red-200 border-red-200"
+              onClick={() => handleDelete(selectedEnc.id, selectedEnc.patientName)}>
+              {t('delete')}
+            </Button>
+          </>}
+        >
               <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-5">
                 <div className="flex items-center gap-2 mb-4">
                   <User size={14} className={ui.iconCls} />
@@ -348,9 +465,15 @@ export const EncaminhamentosList: React.FC = () => {
                         <span>DNI: <span className="font-semibold text-slate-700">{selectedEnc.patientIdentityCard}</span></span>
                       )}
                       <span className="text-slate-300">·</span>
-                      <span>{selectedEnc.date || '—'}</span>
+                      <span>{isoToBRDate(selectedEnc.date) || '—'}</span>
                       {selectedEnc.patientAge && (<><span className="text-slate-300">·</span><span>{selectedEnc.patientAge}</span></>)}
                     </div>
+                    {selectedEnc.patientPhone && (
+                      <div className="flex items-center gap-1.5 mt-1.5 text-xs text-slate-600">
+                        <Phone size={12} className="text-emerald-600" />
+                        <span className="font-semibold">{selectedEnc.patientPhone}</span>
+                      </div>
+                    )}
                     {selectedEnc.clinicName && (
                       <div className="flex items-center gap-1.5 mt-1.5 text-xs text-slate-500">
                         <Building2 size={13} className={ui.iconCls} />
@@ -398,7 +521,7 @@ export const EncaminhamentosList: React.FC = () => {
                 <div>
                   <p className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-3">{t('encaminhamento_sec_motivo')}</p>
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                    <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{selectedEnc.motivo}</p>
+                    <RichText tag="p" className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap" html={selectedEnc.motivo} />
                   </div>
                 </div>
               )}
@@ -407,25 +530,27 @@ export const EncaminhamentosList: React.FC = () => {
                 <Activity size={12} />
                 {t('ord_details_creator')}: <span className="font-semibold text-slate-600">{selectedEnc.createdBy}</span>
               </div>
-            </div>
-
-            <div className="p-4 border-t border-slate-100 bg-slate-50/60 grid grid-cols-2 sm:grid-cols-3 gap-2">
-              <Button variant="outline" size="sm"
-                onClick={() => { triggerDirectPrintEncaminhamento(selectedEnc); setSelectedEnc(null); }}>
-                <Printer size={14} /> {t('print')}
-              </Button>
-              <Button size="sm" className={ui.solidBtn}
-                onClick={() => { setActiveEncaminhamentoForEdit(selectedEnc); setCurrentView('new-encaminhamento'); setSelectedEnc(null); }}>
-                <Edit3 size={14} /> {t('edit')}
-              </Button>
-              <Button variant="outline" size="sm" className="col-span-2 sm:col-span-1 text-red-500 hover:bg-red-50 hover:border-red-200 border-red-200"
-                onClick={() => handleDelete(selectedEnc.id, selectedEnc.patientName)}>
-                {t('delete')}
-              </Button>
-            </div>
-          </div>
-        </div>
+        </DetailDrawer>
       )}
+
+      {/* Print Options Modal */}
+      <PrintOptionsModal
+        open={!!printTarget}
+        title={printTarget ? `#${printTarget.id}` : ''}
+        subtitle={printTarget ? printTarget.patientName : undefined}
+        signing={!!printTarget && signingId === printTarget.id}
+        onPrint={() => {
+          if (!printTarget) return;
+          const tgt = printTarget;
+          setPrintTarget(null);
+          triggerDirectPrintEncaminhamento(tgt);
+        }}
+        onSignPrint={() => {
+          if (!printTarget) return;
+          handleSignPrint(printTarget);
+        }}
+        onClose={() => { if (!signingId) setPrintTarget(null); }}
+      />
     </div>
   );
 };

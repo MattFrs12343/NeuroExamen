@@ -2,6 +2,8 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import cerebroLogo from '../assets/cerebro.png';
+import { VerificationQrCard } from './VerificationQrCard';
+import { RichText } from './RichText';
 import type { Order } from '../types';
 
 const BLUE = '#0066CC';
@@ -20,9 +22,11 @@ interface PrintPageProps {
   formattedDate: string;
   entry: PrintExamEntry;
   isLast: boolean;
+  verificationQr?: string | null;
+  verificationToken?: string | null;
 }
 
-const PrintPage: React.FC<PrintPageProps> = ({ order, formattedDate, entry, isLast }) => {
+const PrintPage: React.FC<PrintPageProps> = ({ order, formattedDate, entry, isLast, verificationQr, verificationToken }) => {
   const { t } = useTranslation();
 
   return (
@@ -68,34 +72,53 @@ const PrintPage: React.FC<PrintPageProps> = ({ order, formattedDate, entry, isLa
         borderRadius: '1px',
       }} />
 
-      {/* PATIENT + DATE */}
-      <div style={{ marginBottom: '28px', fontSize: '13px', lineHeight: '1.7', color: '#111' }}>
-        <div>
-          <span style={{ fontWeight: 600 }}>{t('print_pat_info').toUpperCase()}: </span>
-          <span style={{ fontWeight: 800, color: BLACK, fontSize: '13.5px' }}>
-            {order.patientName.toUpperCase()}
-          </span>
-        </div>
-        <div>
-          <span style={{ fontWeight: 600 }}>{t('print_issue_date').toUpperCase()}: </span>
-          <span>{formattedDate}</span>
-        </div>
-        {order.clinicName && order.clinicName.trim() && (
+      {/* PATIENT + DATE (+ QR de verificação, só ao assinar) */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '28px' }}>
+        <div style={{ flex: 1, minWidth: 0, fontSize: '13px', lineHeight: '1.7', color: '#111' }}>
           <div>
-            <span style={{ fontWeight: 600 }}>{t('print_clinic_label').toUpperCase()}: </span>
-            <span>{order.clinicName}</span>
+            <span style={{ fontWeight: 600 }}>{t('print_pat_info').toUpperCase()}: </span>
+            <span style={{ fontWeight: 800, color: BLACK, fontSize: '13.5px' }}>
+              {order.patientName.toUpperCase()}
+            </span>
           </div>
-        )}
-        {order.observations && order.observations.trim() && (
-          <div style={{ marginTop: '6px' }}>
-            <span style={{ fontWeight: 600 }}>{t('print_additional_obs').toUpperCase()}: </span>
-            <span style={{ fontStyle: 'italic' }}>{order.observations}</span>
+          <div>
+            <span style={{ fontWeight: 600 }}>{t('print_issue_date').toUpperCase()}: </span>
+            <span>{formattedDate}</span>
+          </div>
+          {order.clinicName && order.clinicName.trim() && (
+            <div>
+              <span style={{ fontWeight: 600 }}>{t('print_clinic_label').toUpperCase()}: </span>
+              <span>{order.clinicName}</span>
+              {(order.clinicSecretaria || order.clinicSistema) && (
+                <span> — {[order.clinicSecretaria, order.clinicSistema].filter(Boolean).join(' — ')}</span>
+              )}
+            </div>
+          )}
+          {order.clinicAddress && order.clinicAddress.trim() && (
+            <div style={{ fontSize: '11.5px', color: GRAY }}>{order.clinicAddress}</div>
+          )}
+          {(order.clinicPhone || order.clinicCnpj) && (
+            <div style={{ fontSize: '11.5px', color: GRAY }}>
+              {[order.clinicPhone ? `Tel: ${order.clinicPhone}` : '', order.clinicCnpj ? `CNPJ: ${order.clinicCnpj}` : ''].filter(Boolean).join(' · ')}
+            </div>
+          )}
+          {order.observations && order.observations.trim() && (
+            <div style={{ marginTop: '6px' }}>
+              <span style={{ fontWeight: 600 }}>{t('print_additional_obs').toUpperCase()}: </span>
+              <RichText tag="span" style={{ fontStyle: 'italic' }} html={order.observations} />
+            </div>
+          )}
+        </div>
+
+        {verificationQr && verificationToken && (
+          <div style={{ flexShrink: 0 }}>
+            <VerificationQrCard qrContent={verificationQr} token={verificationToken} size="default" />
           </div>
         )}
       </div>
 
       {/* SINGLE EXAM FOR THIS PAGE */}
-      <div style={{ marginBottom: '32px', minHeight: '300px' }}>
+      <div style={{ marginBottom: '16px', minHeight: '190px' }}>
         <div style={{ marginBottom: '20px' }}>
           <div
             style={{
@@ -152,15 +175,17 @@ const PrintPage: React.FC<PrintPageProps> = ({ order, formattedDate, entry, isLa
               marginTop: '6px',
               marginBottom: '12px',
             }}>
-              <p style={{
-                margin: 0,
-                fontSize: '11.5px',
-                color: '#374151',
-                fontStyle: 'italic',
-                lineHeight: '1.45',
-              }}>
-                {entry.categoryObs}
-              </p>
+              <RichText
+                tag="p"
+                style={{
+                  margin: 0,
+                  fontSize: '11.5px',
+                  color: '#374151',
+                  fontStyle: 'italic',
+                  lineHeight: '1.45',
+                }}
+                html={entry.categoryObs}
+              />
             </div>
           )}
         </div>
@@ -176,7 +201,7 @@ const PrintPage: React.FC<PrintPageProps> = ({ order, formattedDate, entry, isLa
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'flex-end',
+        alignItems: 'flex-start',
       }}>
 
         {/* CID block */}
@@ -210,8 +235,11 @@ const PrintPage: React.FC<PrintPageProps> = ({ order, formattedDate, entry, isLa
           )}
         </div>
 
-        {/* Signature block */}
+        {/* Signature block — espacio reservado arriba de la línea para que
+            el médico pueda sellar (carimbo) y firmar sin chocar con la
+            barra divisoria de arriba. */}
         <div style={{ textAlign: 'center', minWidth: '220px' }}>
+          <div style={{ height: '60px' }} />
           <div style={{
             borderBottom: '2px solid #000',
             marginBottom: '8px',
@@ -235,7 +263,7 @@ const PrintPage: React.FC<PrintPageProps> = ({ order, formattedDate, entry, isLa
 };
 
 export const PrintTemplate: React.FC = () => {
-  const { selectedOrderForPrint, exams } = useApp();
+  const { selectedOrderForPrint, exams, captureTarget, verificationQr, verificationToken } = useApp();
 
   if (!selectedOrderForPrint) return null;
 
@@ -293,6 +321,8 @@ export const PrintTemplate: React.FC = () => {
           formattedDate={formattedDate}
           entry={entry}
           isLast={idx === examEntries.length - 1}
+          verificationQr={captureTarget === 'order' ? verificationQr : null}
+          verificationToken={captureTarget === 'order' ? verificationToken : null}
         />
       ))}
     </div>

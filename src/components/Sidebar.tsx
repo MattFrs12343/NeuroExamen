@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import type { ViewType } from '../types';
-import { LayoutDashboard, FileText, LogOut, X, Pill, Stethoscope, ChevronDown, FileCheck } from 'lucide-react';
+import { LayoutDashboard, FileText, LogOut, X, Pill, Stethoscope, ChevronDown, FileCheck, Milk, NotebookPen, Scale } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { ENC_PROFILES, ENC_PROFILE_KEYS } from '../data/encaminhamentoProfiles';
 import cerebroLogo from '../assets/cerebro.png';
@@ -22,6 +22,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     { id: 'orders'        as ViewType, label: t('nav_orders'),        icon: FileText },
     { id: 'recetas'       as ViewType, label: t('nav_recetas'),       icon: Pill },
     { id: 'atestados'     as ViewType, label: t('nav_atestados'),     icon: FileCheck },
+    { id: 'formula-leite' as ViewType, label: t('nav_formula_leite'), icon: Milk },
+    { id: 'receituarios'  as ViewType, label: t('nav_receituario'),   icon: NotebookPen },
+    { id: 'laudos'        as ViewType, label: t('nav_laudos'),        icon: Scale },
   ];
 
   const isEncActive = currentView === 'encaminhamentos' || currentView === 'new-encaminhamento';
@@ -29,7 +32,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     currentView === id ||
     (id === 'orders'    && currentView === 'new-order') ||
     (id === 'recetas'   && currentView === 'new-receta') ||
-    (id === 'atestados' && currentView === 'new-atestado');
+    (id === 'atestados' && currentView === 'new-atestado') ||
+    (id === 'formula-leite' && currentView === 'new-formula-leite') ||
+    (id === 'receituarios' && currentView === 'new-receituario') ||
+    (id === 'laudos' && currentView === 'new-laudo');
 
   const encExpanded = encOpen || isEncActive;
 

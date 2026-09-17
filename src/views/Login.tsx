@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,9 +23,15 @@ export const Login: React.FC = () => {
   const [error,   setError]   = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Detectar si la sesión expiró
-  const sessionExpired = sessionStorage.getItem('session_expired') === '1';
-  if (sessionExpired) sessionStorage.removeItem('session_expired');
+  // Detectar si la sesión expiró. Se lee una sola vez al montar (lazy
+  // initializer) y el flag se borra en un efecto — leer y mutar
+  // sessionStorage directo en el cuerpo del componente rompía en
+  // StrictMode: el doble render de montaje borraba el flag antes de
+  // que el segundo render lo viera, y el aviso nunca se mostraba.
+  const [sessionExpired] = useState(() => sessionStorage.getItem('session_expired') === '1');
+  useEffect(() => {
+    if (sessionExpired) sessionStorage.removeItem('session_expired');
+  }, [sessionExpired]);
 
   const schema = useMemo(() => getSchema(t), [t]);
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({

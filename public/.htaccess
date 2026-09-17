@@ -26,7 +26,11 @@ ServerSignature Off
     Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
     Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" "expr=%{HTTPS} == 'on'"
     # CSP: ajustar connect-src si el frontend y la API viven en dominios distintos.
-    Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; connect-src 'self' https://pedidos.examenes-neuro.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    # frame-src 'self' blob: — sin esto, default-src 'self' bloquea en
+    # silencio (sin excepción capturable en JS) el iframe oculto que
+    # printPdfBlob() usa para imprimir el PDF firmado desde una blob: URL;
+    # el usuario solo ve el spinner sin que pase nada, sin ningún error.
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; connect-src 'self' https://pedidos.examenes-neuro.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; frame-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 </IfModule>
 
 # ------------------------------------------------------------------
@@ -37,4 +41,36 @@ ServerSignature Off
 </IfModule>
 <IfModule mod_headers.c>
     Header always unset Server
+</IfModule>
+
+# ------------------------------------------------------------------
+# Cache-Control (SPA de Vite + Cloudflare)
+#
+# - index.html: revalidar siempre, para que cada deploy llegue rápido.
+# - assets con hash (/assets/*.js|css): 1 año inmutable (el nombre cambia
+#   en cada build, así que nunca sirven una versión vieja).
+# - cid10.json / vademecum.json: catálogos grandes de nombre fijo; 1 día.
+#   (En Cloudflare: regla "Cache Everything" para que se cacheen en el edge.)
+# - /api/* (PHP): nunca cachear (datos dinámicos + autenticación).
+# ------------------------------------------------------------------
+<IfModule mod_headers.c>
+    <FilesMatch "index\.html$">
+        Header always set Cache-Control "no-cache, no-store, must-revalidate"
+    </FilesMatch>
+
+    <FilesMatch "\.php$">
+        Header always set Cache-Control "no-store"
+    </FilesMatch>
+
+    <FilesMatch "\.(js|mjs|css)$">
+        Header always set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+
+    <FilesMatch "\.(png|webp|jpe?g|gif|ico|woff2?|ttf|eot)$">
+        Header always set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+
+    <FilesMatch "^(cid10|vademecum)\.json$">
+        Header always set Cache-Control "public, max-age=86400"
+    </FilesMatch>
 </IfModule>

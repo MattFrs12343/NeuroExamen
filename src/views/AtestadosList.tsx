@@ -4,12 +4,18 @@ import { useApp } from '../context/AppContext';
 import type { Atestado } from '../types';
 import {
   PlusCircle, Search, Calendar, Filter, RefreshCw,
-  Edit3, Printer, X, FileCheck, User,
-  ChevronLeft, ChevronRight, Activity, Eye, Trash2, Building2,
+  Edit3, Printer, FileCheck, User,
+  ChevronLeft, ChevronRight, Activity, Eye, Trash2, Building2, Phone,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { WhatsAppIcon } from '../components/icons/WhatsAppIcon';
+import { DetailDrawer } from '../components/DetailDrawer';
+import { PrintOptionsModal } from '../components/PrintOptionsModal';
 import { cn, getErrorMessage, hasIdentity } from '../lib/utils';
+import { isoToBRDate, isoToBRDateTime } from '../lib/dates';
+import { printSignedPdf } from '../lib/signedPdf';
+import { openWhatsApp, buildDocumentWhatsAppMessage, stripDoctorPrefix } from '../lib/whatsapp';
 
 const PAGE_SIZE = 15;
 
@@ -71,6 +77,31 @@ export const AtestadosList: React.FC = () => {
       await deleteAtestado(id);
       if (selectedAtest?.id === id) setSelectedAtest(null);
     } catch (err) { alert('Error: ' + getErrorMessage(err)); }
+  };
+
+  const [signingId, setSigningId] = useState<string | null>(null);
+  const [printTarget, setPrintTarget] = useState<Atestado | null>(null);
+
+  const handleSignPrint = async (atest: Atestado) => {
+    setSigningId(atest.id);
+    try {
+      await printSignedPdf('atestados', atest.id);
+    } catch (err) { alert(t('sign_pdf_error', { message: getErrorMessage(err) })); }
+    finally { setSigningId(null); }
+  };
+
+  const handleSendWhatsApp = (atest: Atestado, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!atest.patientPhone?.trim()) { alert(t('whatsapp_phone_required')); return; }
+    const message = buildDocumentWhatsAppMessage({
+      patientName: atest.patientName,
+      docTypeLabel: 'seu atestado',
+      doctorName: atest.doctorName || stripDoctorPrefix(atest.createdBy),
+      validationUrl: atest.validationUrl,
+      token: atest.token,
+      accessCode: atest.accessCode,
+    });
+    if (openWhatsApp(atest.patientPhone, message) === 'invalid-phone') { alert(t('whatsapp_phone_invalid')); return; }
   };
 
   const getInitials = (name: string) =>
@@ -142,8 +173,8 @@ export const AtestadosList: React.FC = () => {
 
       {/* ── Table ──────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-premium overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
+        <div className="hidden xl:block overflow-x-auto">
+          <table className="w-full text-left data-table">
             <thead>
               <tr className="border-b border-slate-100">
                 {[t('pat_col_name'), t('date'), t('print_cid'), t('ord_col_doctor'), t('actions')].map((h, i) => (
@@ -187,7 +218,7 @@ export const AtestadosList: React.FC = () => {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <Calendar size={13} className="text-slate-300" />
-                      <span className="text-sm font-medium text-slate-600 whitespace-nowrap">{atest.issuedAt || atest.careDate || '—'}</span>
+                      <span className="text-sm font-medium text-slate-600 whitespace-nowrap">{isoToBRDateTime(atest.issuedAt) || isoToBRDate(atest.careDate) || '—'}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -217,10 +248,17 @@ export const AtestadosList: React.FC = () => {
                       </button>
                       <button
                         title={t('print')}
-                        onClick={e => { e.stopPropagation(); triggerDirectPrintAtestado(atest); }}
+                        onClick={e => { e.stopPropagation(); setPrintTarget(atest); }}
                         className="p-2 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all"
                       >
                         <Printer size={15} />
+                      </button>
+                      <button
+                        title={t('whatsapp_send_btn')}
+                        onClick={e => handleSendWhatsApp(atest, e)}
+                        className="p-2 rounded-lg text-slate-400 hover:text-[#25D366] hover:bg-[#25D366]/8 transition-all"
+                      >
+                        <WhatsAppIcon size={15} />
                       </button>
                       <button
                         title={t('delete')}
@@ -235,6 +273,79 @@ export const AtestadosList: React.FC = () => {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* ── Mobile cards ─────────────────────────────────────────────── */}
+        <div className="xl:hidden divide-y divide-slate-100">
+          {paged.length === 0 ? (
+            <div className="px-6 py-16 text-center">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
+                  <FileCheck size={24} className="text-slate-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-600">{t('atestados_no_found')}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Ajusta los filtros o crea un nuevo atestado</p>
+                </div>
+              </div>
+            </div>
+          ) : paged.map(atest => (
+            <div key={atest.id} className="p-4 active:bg-slate-50" onClick={() => setSelectedAtest(atest)}>
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-xl bg-[#0F4C81]/10 text-[#0F4C81] text-sm font-bold flex items-center justify-center shrink-0">
+                  {getInitials(atest.patientName)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 leading-snug">{atest.patientName}</p>
+                  <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-slate-400">
+                    <span className="inline-flex items-center gap-1"><Calendar size={11} />{isoToBRDateTime(atest.issuedAt) || isoToBRDate(atest.careDate) || '—'}</span>
+                    {hasIdentity(atest.patientIdentityCard) && <span>CPF: {atest.patientIdentityCard}</span>}
+                    {atest.cid && <span>CID: {atest.cid}</span>}
+                    <span className="truncate max-w-[160px]">{atest.doctorName || atest.createdBy}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions row — full-width, evenly divided touch targets */}
+              <div className="flex items-stretch gap-1.5 mt-3 pt-3 border-t border-slate-100" onClick={e => e.stopPropagation()}>
+                <button
+                  aria-label={t('ord_tooltip_view')}
+                  onClick={() => setSelectedAtest(atest)}
+                  className="flex-1 flex items-center justify-center py-2.5 rounded-xl text-slate-500 bg-slate-50 active:bg-[#0F4C81]/10 active:text-[#0F4C81] transition-colors"
+                >
+                  <Eye size={18} />
+                </button>
+                <button
+                  aria-label={t('edit')}
+                  onClick={() => { setActiveAtestadoForEdit(atest); setCurrentView('new-atestado'); }}
+                  className="flex-1 flex items-center justify-center py-2.5 rounded-xl text-slate-500 bg-slate-50 active:bg-slate-200 transition-colors"
+                >
+                  <Edit3 size={18} />
+                </button>
+                <button
+                  aria-label={t('print')}
+                  onClick={() => setPrintTarget(atest)}
+                  className="flex-1 flex items-center justify-center py-2.5 rounded-xl text-slate-500 bg-slate-50 active:bg-emerald-100 active:text-emerald-600 transition-colors"
+                >
+                  <Printer size={18} />
+                </button>
+                <button
+                  aria-label={t('whatsapp_send_btn')}
+                  onClick={() => handleSendWhatsApp(atest)}
+                  className="flex-1 flex items-center justify-center py-2.5 rounded-xl text-slate-500 bg-slate-50 active:bg-[#25D366]/15 active:text-[#25D366] transition-colors"
+                >
+                  <WhatsAppIcon size={18} />
+                </button>
+                <button
+                  aria-label={t('delete')}
+                  onClick={() => handleDelete(atest.id, atest.patientName)}
+                  className="flex-1 flex items-center justify-center py-2.5 rounded-xl text-slate-500 bg-slate-50 active:bg-red-100 active:text-red-500 transition-colors"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Pagination */}
@@ -273,29 +384,31 @@ export const AtestadosList: React.FC = () => {
 
       {/* ── Detail Drawer ───────────────────────────────────────────────── */}
       {selectedAtest && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-slate-900/25 backdrop-blur-sm" onClick={() => setSelectedAtest(null)} />
-          <div className="relative w-full max-w-lg bg-white h-full shadow-premium-lg flex flex-col animate-slide-in">
-
-            <div className="px-6 py-5 border-b border-slate-100">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-[#0F4C81]/8 border border-[#0F4C81]/15">
-                    <FileCheck size={18} className="text-[#0F4C81]" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mb-0.5">{t('atestados_details_title')}</p>
-                    <p className="text-lg font-bold text-slate-900 tracking-tight">#{selectedAtest.id}</p>
-                  </div>
-                </div>
-                <button onClick={() => setSelectedAtest(null)}
-                  className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <DetailDrawer
+          open={true}
+          onClose={() => setSelectedAtest(null)}
+          icon={<FileCheck size={18} className="text-[#0F4C81]" />}
+          eyebrow={t('atestados_details_title')}
+          title={`#${selectedAtest.id}`}
+          footer={<>
+            <Button variant="outline" size="sm"
+              onClick={() => { setPrintTarget(selectedAtest); setSelectedAtest(null); }}>
+              <Printer size={14} /> {t('print')}
+            </Button>
+            <Button variant="outline" size="sm" className="text-[#25D366] hover:bg-[#25D366]/8 hover:border-[#25D366]/30 border-[#25D366]/20"
+              onClick={() => handleSendWhatsApp(selectedAtest)}>
+              <WhatsAppIcon size={14} /> {t('whatsapp_send_btn')}
+            </Button>
+            <Button size="sm" className="bg-[#0F4C81] hover:bg-[#0a3a63]"
+              onClick={() => { setActiveAtestadoForEdit(selectedAtest); setCurrentView('new-atestado'); setSelectedAtest(null); }}>
+              <Edit3 size={14} /> {t('edit')}
+            </Button>
+            <Button variant="outline" size="sm" className="text-red-500 hover:bg-red-50 hover:border-red-200 border-red-200"
+              onClick={() => handleDelete(selectedAtest.id, selectedAtest.patientName)}>
+              {t('delete')}
+            </Button>
+          </>}
+        >
               <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-5">
                 <div className="flex items-center gap-2 mb-4">
                   <User size={14} className="text-[#0F4C81]" />
@@ -313,6 +426,12 @@ export const AtestadosList: React.FC = () => {
                       )}
                       {selectedAtest.patientBirthDate && (<><span className="text-slate-300">·</span><span>{selectedAtest.patientBirthDate}</span></>)}
                     </div>
+                    {selectedAtest.patientPhone && (
+                      <div className="flex items-center gap-1.5 mt-1.5 text-xs text-slate-600">
+                        <Phone size={12} className="text-emerald-600" />
+                        <span className="font-semibold">{selectedAtest.patientPhone}</span>
+                      </div>
+                    )}
                     {selectedAtest.patientAddress && (
                       <p className="mt-1.5 text-xs text-slate-500">{selectedAtest.patientAddress}</p>
                     )}
@@ -388,25 +507,27 @@ export const AtestadosList: React.FC = () => {
                 <Activity size={12} />
                 {t('ord_details_creator')}: <span className="font-semibold text-slate-600">{selectedAtest.createdBy}</span>
               </div>
-            </div>
-
-            <div className="p-4 border-t border-slate-100 bg-slate-50/60 grid grid-cols-2 sm:grid-cols-3 gap-2">
-              <Button variant="outline" size="sm"
-                onClick={() => { triggerDirectPrintAtestado(selectedAtest); setSelectedAtest(null); }}>
-                <Printer size={14} /> {t('print')}
-              </Button>
-              <Button size="sm" className="bg-[#0F4C81] hover:bg-[#0a3a63]"
-                onClick={() => { setActiveAtestadoForEdit(selectedAtest); setCurrentView('new-atestado'); setSelectedAtest(null); }}>
-                <Edit3 size={14} /> {t('edit')}
-              </Button>
-              <Button variant="outline" size="sm" className="col-span-2 sm:col-span-1 text-red-500 hover:bg-red-50 hover:border-red-200 border-red-200"
-                onClick={() => handleDelete(selectedAtest.id, selectedAtest.patientName)}>
-                {t('delete')}
-              </Button>
-            </div>
-          </div>
-        </div>
+        </DetailDrawer>
       )}
+
+      {/* Print Options Modal */}
+      <PrintOptionsModal
+        open={!!printTarget}
+        title={printTarget ? `#${printTarget.id}` : ''}
+        subtitle={printTarget?.patientName || undefined}
+        signing={!!printTarget && signingId === printTarget.id}
+        onPrint={() => {
+          if (!printTarget) return;
+          const tgt = printTarget;
+          setPrintTarget(null);
+          triggerDirectPrintAtestado(tgt);
+        }}
+        onSignPrint={() => {
+          if (!printTarget) return;
+          handleSignPrint(printTarget);
+        }}
+        onClose={() => { if (!signingId) setPrintTarget(null); }}
+      />
     </div>
   );
 };

@@ -4,13 +4,16 @@ import { useApp } from '../context/AppContext';
 import {
   User, Search, Calendar, Check, ArrowLeft, X,
   PlusCircle, ClipboardList, CheckCircle2,
-  Stethoscope, FileText, Send,
+  Stethoscope, FileText, Send, FileSignature, Trash2,
 } from 'lucide-react';
 import { Input } from '../components/ui/input';
-import { Textarea } from '../components/ui/textarea';
-import { ClinicField } from '../components/ClinicField';
+import { ExpandableRichField } from '../components/ExpandableRichField';
+import { ClinicProfileField } from '../components/ClinicProfileField';
 import { encUi } from '../data/encaminhamentoProfiles';
-import { cn, getErrorMessage, hasIdentity } from '../lib/utils';
+import { cn, findPatientsByExactName, getErrorMessage, hasIdentity } from '../lib/utils';
+import { EditPatientNameButton } from '../components/EditPatientNameButton';
+import { findClinicProfile } from '../lib/clinic';
+import { isRichTextEmpty } from '../lib/richText';
 
 const PanelCard = ({ children, className }: { children: React.ReactNode; className?: string }) => (
   <div className={cn('bg-white rounded-2xl border border-slate-200/80 shadow-premium', className)}>
@@ -40,10 +43,11 @@ export const NewEncaminhamento: React.FC = () => {
   const {
     patients, addPatient,
     setCurrentView, activeEncaminhamentoForEdit, setActiveEncaminhamentoForEdit,
-    triggerDirectPrintEncaminhamento, addEncaminhamento, updateEncaminhamento,
-    specialistsCatalog, addSpecialist,
-    lastClinicName, setLastClinicName,
+    triggerDirectPrintEncaminhamento, triggerSignAndPrint, addEncaminhamento, updateEncaminhamento,
+    specialistsCatalog, addSpecialist, deleteSpecialist,
+    lastClinicName, setLastClinicName, clinicProfiles,
     activeEncProfile, setActiveEncProfile,
+    getLastKnownPatientPhone,
   } = useApp();
 
   const isEdit = !!activeEncaminhamentoForEdit;
@@ -55,11 +59,25 @@ export const NewEncaminhamento: React.FC = () => {
   const [encDate,     setEncDate]     = useState('');
   const [noDate,      setNoDate]      = useState(false);
   const [patientAge,  setPatientAge]  = useState('');
+  const [patientPhone, setPatientPhone] = useState('');
   const [hd,          setHd]          = useState('');
   const [motivo,      setMotivo]      = useState('');
   const [clinicName,  setClinicName]  = useState(lastClinicName);
   const [selectedSpecialists, setSelectedSpecialists] = useState<string[]>([]);
   const [newSpecialistName,   setNewSpecialistName]   = useState('');
+  const [signing, setSigning] = useState(false);
+
+  const selectedClinicProfile = useMemo(
+    () => findClinicProfile(clinicProfiles, clinicName),
+    [clinicName, clinicProfiles]
+  );
+  const clinicSecretaria = selectedClinicProfile?.secretaria || '';
+  const clinicSistema    = selectedClinicProfile?.sistema    || '';
+  const clinicAddress    = selectedClinicProfile?.address    || '';
+  const clinicPhone      = selectedClinicProfile?.phone      || '';
+  const clinicCnpj       = selectedClinicProfile?.cnpj       || '';
+
+  const handleSelectClinic = (name: string) => { setClinicName(name); setLastClinicName(name); };
 
   // Cada clínica maneja su propio historial de pacientes: en NEUROISBE solo
   // aparecen los pacientes de NEUROISBE; en NEUROMOBIUS los suyos (los antiguos
@@ -84,6 +102,7 @@ export const NewEncaminhamento: React.FC = () => {
       setEncDate(activeEncaminhamentoForEdit.date || '');
       setNoDate(!activeEncaminhamentoForEdit.date);
       setPatientAge(activeEncaminhamentoForEdit.patientAge || '');
+      setPatientPhone(activeEncaminhamentoForEdit.patientPhone || getLastKnownPatientPhone(activeEncaminhamentoForEdit.patientId));
       setHd(activeEncaminhamentoForEdit.hd || '');
       setMotivo(activeEncaminhamentoForEdit.motivo || '');
       setClinicName(activeEncaminhamentoForEdit.clinicName || '');
@@ -93,12 +112,17 @@ export const NewEncaminhamento: React.FC = () => {
       setEncDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`);
       setNoDate(false);
       setPatientAge('');
+      setPatientPhone('');
       setHd('');
       setMotivo('');
-      setClinicName(lastClinicName);
+      // clinicName NO se resetea acá: ya se inicializa con useState(lastClinicName)
+      // al montar. Incluir lastClinicName como dependencia hacía que seleccionar
+      // una clínica (handleSelectClinic → setLastClinicName) re-disparara este
+      // efecto y borrara todo lo ya cargado (edad, teléfono, HD, motivo,
+      // especialistas). Igual que NewOrder/NewReceta/NewAtestado, que no lo incluyen.
       setSelectedSpecialists([]);
     }
-  }, [activeEncaminhamentoForEdit, patients, lastClinicName]);
+  }, [activeEncaminhamentoForEdit, patients, getLastKnownPatientPhone]);
 
   // Al editar un documento, la pestaña activa pas a reflejar su perfil original.
   useEffect(() => {
@@ -121,6 +145,7 @@ export const NewEncaminhamento: React.FC = () => {
 
   const handleSelectPatient = (id: string, name: string) => {
     setPatientId(id); setPatQuery(name); setShowPatDrop(false);
+    setPatientPhone(prev => prev.trim() ? prev : getLastKnownPatientPhone(id));
   };
 
   const toggleSpecialist = (id: string) =>
@@ -129,21 +154,32 @@ export const NewEncaminhamento: React.FC = () => {
   const handleCreateSpecialist = async () => {
     const name = newSpecialistName.trim(); if (!name) return;
     try {
-      const created = await addSpecialist(name);
+      const created = await addSpecialist(name, activeEncProfile);
       setSelectedSpecialists(prev => [...prev, created.id]);
       setNewSpecialistName('');
     } catch (e) { alert(t('save_error_msg', { message: getErrorMessage(e) })); }
   };
 
-  const handleSave = async (print: boolean) => {
+  const handleDeleteSpecialist = async (id: string, name: string) => {
+    if (!confirm(t('encaminhamento_specialist_delete_confirm', { name }))) return;
+    try {
+      await deleteSpecialist(id);
+      setSelectedSpecialists(prev => prev.filter(x => x !== id));
+    } catch (e) { alert(t('save_error_msg', { message: getErrorMessage(e) })); }
+  };
+
+  const handleSave = async (action: 'save' | 'print' | 'sign-print') => {
     if (!patQuery.trim())            { alert(t('new_order_validation_pat'));         return; }
     if (!selectedSpecialists.length) { alert(t('encaminhamento_validation_specs'));   return; }
 
     let fPid = patientId;
     if (!fPid) {
-      const exact = patients.find(p => (p.origin ?? 'neuromobius') === activeEncProfile
-        && p.name.toLowerCase() === patQuery.toLowerCase());
-      if (exact) { fPid = exact.id; }
+      const matches = findPatientsByExactName(
+        patients.filter(p => (p.origin ?? 'neuromobius') === activeEncProfile),
+        patQuery,
+      );
+      if (matches.length > 1) { alert(t('patient_ambiguous_match')); return; }
+      if (matches.length === 1) { fPid = matches[0].id; }
       else {
         try {
           const created = await addPatient({ name: patQuery.trim(), origin: activeEncProfile });
@@ -155,9 +191,15 @@ export const NewEncaminhamento: React.FC = () => {
     const payload = {
       patientId: fPid, date: noDate ? undefined : (encDate.trim() || undefined),
       patientAge: patientAge.trim() || undefined,
+      patientPhone: patientPhone.trim() || undefined,
       hd: hd.trim() || undefined,
-      motivo: motivo.trim() || undefined,
+      motivo: isRichTextEmpty(motivo) ? undefined : motivo,
       clinicName: clinicName.trim() || undefined,
+      clinicSecretaria: clinicSecretaria.trim() || undefined,
+      clinicSistema: clinicSistema.trim() || undefined,
+      clinicAddress: clinicAddress.trim() || undefined,
+      clinicPhone: clinicPhone.trim() || undefined,
+      clinicCnpj: clinicCnpj.trim() || undefined,
       templateId: activeEncProfile,
       specialists: selectedSpecialists,
     };
@@ -170,8 +212,20 @@ export const NewEncaminhamento: React.FC = () => {
       } else {
         saved = await addEncaminhamento(payload);
       }
-      if (print) triggerDirectPrintEncaminhamento(saved);
-      else alert(isEdit ? t('encaminhamento_success_edit') : t('encaminhamento_success'));
+      if (action === 'print') {
+        triggerDirectPrintEncaminhamento(saved);
+      } else if (action === 'sign-print') {
+        setSigning(true);
+        try {
+          await triggerSignAndPrint('encaminhamento', saved);
+        } catch (e) {
+          alert(t('sign_pdf_error', { message: getErrorMessage(e) }));
+        } finally {
+          setSigning(false);
+        }
+      } else {
+        alert(isEdit ? t('encaminhamento_success_edit') : t('encaminhamento_success'));
+      }
       setCurrentView('encaminhamentos');
     } catch (e) { alert(t('save_error_msg', { message: getErrorMessage(e) })); }
   };
@@ -181,7 +235,7 @@ export const NewEncaminhamento: React.FC = () => {
   const handleClear = () => {
     setPatientId(''); setPatQuery('');
     setNoDate(false);
-    setPatientAge(''); setHd(''); setMotivo(''); setClinicName('');
+    setPatientAge(''); setPatientPhone(''); setHd(''); setMotivo(''); setClinicName('');
     setSelectedSpecialists([]);
   };
 
@@ -216,20 +270,30 @@ export const NewEncaminhamento: React.FC = () => {
                 {specialistsCatalog.map(s => {
                   const checked = selectedSpecialists.includes(s.id);
                   return (
-                    <label key={s.id} className={cn(
-                      'flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer text-sm font-medium transition-all select-none',
+                    <div key={s.id} className={cn(
+                      'flex items-center gap-2 p-3 rounded-xl border text-sm font-medium transition-all',
                       checked
                         ? ui.checkedOption
                         : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
                     )}>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleSpecialist(s.id)}
-                        className={cn('w-4 h-4 rounded cursor-pointer', ui.accentInput)}
-                      />
-                      <span className="leading-snug">{s.name}</span>
-                    </label>
+                      <label className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleSpecialist(s.id)}
+                          className={cn('w-4 h-4 rounded cursor-pointer shrink-0', ui.accentInput)}
+                        />
+                        <span className="leading-snug truncate">{s.name}</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSpecialist(s.id, s.name)}
+                        title={t('encaminhamento_specialist_delete_btn')}
+                        className="p-1 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors shrink-0"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -260,15 +324,16 @@ export const NewEncaminhamento: React.FC = () => {
                   <div className="relative">
                     <Search size={16} strokeWidth={1.75} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                     <Input
-                      className={`pl-10 pr-8 h-11 border-slate-200 bg-slate-50/50 focus:bg-white ${ui.focusBorder}`}
+                      className={`pl-10 pr-8 h-11 border-slate-200 bg-slate-50/50 focus:bg-white ${ui.focusBorder} ${isEdit ? 'cursor-not-allowed text-slate-500' : ''}`}
                       placeholder={t('new_order_pat_search')}
                       value={patQuery}
+                      readOnly={isEdit}
                       onChange={e => { setPatQuery(e.target.value); setPatientId(''); setShowPatDrop(true); }}
-                      onFocus={() => { if (patQuery.trim()) setShowPatDrop(true); }}
+                      onFocus={() => { if (!isEdit && patQuery.trim()) setShowPatDrop(true); }}
                       onBlur={() => setTimeout(() => setShowPatDrop(false), 150)}
                       autoComplete="off"
                     />
-                    {patQuery && (
+                    {patQuery && !isEdit && (
                       <button type="button"
                         onMouseDown={e => { e.preventDefault(); setPatQuery(''); setPatientId(''); setShowPatDrop(false); }}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -302,10 +367,13 @@ export const NewEncaminhamento: React.FC = () => {
                   )}
 
                   {patientId && selectedPatient && (
-                    <div className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
-                      <CheckCircle2 size={13} strokeWidth={2.5} />
-                      {selectedPatient.name}{hasIdentity(selectedPatient.identityCard) ? ` — DNI: ${selectedPatient.identityCard}` : ''}
-                    </div>
+                    <>
+                      <div className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
+                        <CheckCircle2 size={13} strokeWidth={2.5} />
+                        {selectedPatient.name}{hasIdentity(selectedPatient.identityCard) ? ` — DNI: ${selectedPatient.identityCard}` : ''}
+                      </div>
+                      <EditPatientNameButton patientId={patientId} onRenamed={setPatQuery} />
+                    </>
                   )}
                 </div>
 
@@ -319,12 +387,35 @@ export const NewEncaminhamento: React.FC = () => {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  {t('patient_phone_label')} <span className="text-slate-400 font-normal">({t('optional')})</span>
+                </label>
+                <Input type="tel" className={`h-11 border-slate-200 bg-slate-50/50 focus:bg-white ${ui.focusBorder}`}
+                  placeholder={t('patient_phone_placeholder')}
+                  value={patientPhone} onChange={e => setPatientPhone(e.target.value)} />
+              </div>
+
               {/* Clínica / Institución */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-2">
                   Clínica / Institución <span className="text-slate-400 font-normal">({t('optional')})</span>
                 </label>
-                <ClinicField value={clinicName} onValueChange={v => { setClinicName(v); setLastClinicName(v); }} />
+                <ClinicProfileField
+                  options={clinicProfiles}
+                  value={clinicName}
+                  onValueChange={handleSelectClinic}
+                />
+                {clinicName && (
+                  <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4 text-xs text-slate-600 space-y-1">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t('receta_clinic_preview_title')}</p>
+                    {clinicSecretaria && <p>{clinicSecretaria}</p>}
+                    {clinicSistema && <p>{clinicSistema}</p>}
+                    {clinicAddress && <p className="whitespace-pre-line">{clinicAddress}</p>}
+                    {clinicPhone && <p className="whitespace-pre-line"><strong className="font-semibold text-slate-700">Tel:</strong> {clinicPhone}</p>}
+                    {clinicCnpj && <p><strong className="font-semibold text-slate-700">CNPJ:</strong> {clinicCnpj}</p>}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -364,12 +455,13 @@ export const NewEncaminhamento: React.FC = () => {
             <PanelCardHead icon={Send} title={t('encaminhamento_sec_motivo')} iconBg={ui.iconBox} iconCls={ui.iconCls} />
             <div className="p-6 space-y-2">
               <p className="text-xs text-slate-500 italic">{t('encaminhamento_fixed_text')}</p>
-              <Textarea
-                rows={6}
-                className={`border-slate-200 bg-slate-50/50 focus:bg-white ${ui.focusBorder} resize-none`}
-                placeholder={t('encaminhamento_motivo_placeholder')}
+              <ExpandableRichField
                 value={motivo}
-                onChange={e => setMotivo(e.target.value)}
+                onChange={setMotivo}
+                placeholder={t('encaminhamento_motivo_placeholder')}
+                modalTitle={t('encaminhamento_sec_motivo')}
+                className="border border-slate-200 bg-slate-50/50 hover:border-[#0F4C81] transition-colors"
+                style={{ minHeight: '150px' }}
               />
             </div>
           </PanelCard>
@@ -377,7 +469,7 @@ export const NewEncaminhamento: React.FC = () => {
         </div>
 
         {/* ── Columna derecha — Resumen sticky ─────────────────────────── */}
-        <div className="lg:col-span-1 lg:sticky lg:top-20 space-y-4">
+        <div className="lg:col-span-1 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto space-y-4">
           <PanelCard>
             <PanelCardHead icon={ClipboardList} title={t('receta_sec_summary')} iconBg={ui.iconBox} iconCls={ui.iconCls} />
             <div className="p-5 space-y-4">
@@ -436,14 +528,19 @@ export const NewEncaminhamento: React.FC = () => {
           </PanelCard>
 
           <div className="space-y-2">
-            <button type="button" onClick={() => handleSave(false)}
+            <button type="button" onClick={() => handleSave('save')}
               className={`flex items-center justify-center gap-2 w-full h-12 rounded-xl ${ui.solidBtn} text-white text-sm font-bold shadow-sm hover:shadow-md transition-all`}>
               <Check size={17} strokeWidth={2.5} />
               {t('save')}
             </button>
-            <button type="button" onClick={() => handleSave(true)}
+            <button type="button" onClick={() => handleSave('print')}
               className="flex items-center justify-center gap-2 w-full h-11 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-sm font-semibold transition-all">
               {t('save_and_print')}
+            </button>
+            <button type="button" onClick={() => handleSave('sign-print')} disabled={signing}
+              className={`flex items-center justify-center gap-2 w-full h-11 rounded-xl ${ui.solidBtn} text-white text-sm font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-50`}>
+              <FileSignature size={16} className={signing ? 'animate-pulse' : ''} />
+              {signing ? t('sign_print_loading') : t('save_sign_print')}
             </button>
             <button type="button" onClick={handleClear}
               className="flex items-center justify-center w-full h-10 rounded-xl border border-slate-200 text-sm font-medium text-slate-500 hover:bg-slate-50 transition-colors">

@@ -62,11 +62,17 @@ Atestados y Recetas. Son idempotentes (se pueden correr varias veces).
 ```bash
 mysql --default-character-set=utf8mb4 -u USUARIO -p neuroexamenes < sql/migration_atestado_clinic.sql
 mysql --default-character-set=utf8mb4 -u USUARIO -p neuroexamenes < sql/migration_receta_clinic_doutor.sql
+mysql --default-character-set=utf8mb4 -u USUARIO -p neuroexamenes < sql/migration_formula_leite.sql
 ```
 
 > La primera (`migration_atestado_clinic.sql`) es **obligatoria** para que la
 > clínica seleccionada en un Atestado se guarde en la BD e imprima
 > (`clinic_name`, `clinic_secretaria`, ... en la tabla `atestados`).
+>
+> La tercera (`migration_formula_leite.sql`) crea las tablas `formula_leite`
+> y `formula_leite_counter` para el módulo "Fórmulas Infantis" (ficha de
+> avaliação para fornecimento de fórmulas infantis especiais). Es
+> **obligatoria** para que ese módulo funcione.
 
 ### 2. Subir los archivos PHP
 Subir todo el contenido de `server-php/` a una carpeta en el hosting,

@@ -1,9 +1,14 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import type { ViewType, User, Patient, Exam, Order, OrderStatus, Receta, MedicationLine, ClinicProfile, Encaminhamento, Atestado } from '../types';
+import type { ViewType, User, Patient, Exam, Order, OrderStatus, Receta, MedicationLine, ClinicProfile, Encaminhamento, Atestado, FormulaLeite, Receituario, Laudo, LaudoClinicProfile } from '../types';
 import type { EncProfileKey } from '../data/encaminhamentoProfiles';
 import { INITIAL_EXAMS } from '../data/seedData';
 import printCerebroImg from '../assets/print-neurocerebro.webp';
 import printMobiusImg from '../assets/print-neuomobius.webp';
+import { fetchVerificationInfo, uploadAndSignPdf, printPdfBlob } from '../lib/signedPdf';
+// capturePrintAreaToPdf se importa dinámicamente en triggerSignAndPrint()
+// (ver más abajo): arrastra html2canvas + jsPDF, ~600KB minificados entre
+// las dos — cargarlas de entrada metía ese peso en el bundle principal para
+// TODOS los usuarios, incluidos los que nunca usan "Assinar e Imprimir".
 
 const EXAMS: Exam[] = INITIAL_EXAMS;
 const API = (import.meta.env.VITE_API_URL as string) || 'http://localhost/neuro-api/api';
@@ -24,12 +29,16 @@ interface AppContextProps {
   recetas: Receta[];
   encaminhamentos: Encaminhamento[];
   atestados: Atestado[];
+  formulaLeites: FormulaLeite[];
+  receituarios: Receituario[];
+  laudos: Laudo[];
+  laudoClinics: LaudoClinicProfile[];
   exams: Exam[];
   clinics: string[];
   clinicProfiles: ClinicProfile[];
   customExamsCatalog: { id: string; name: string }[];
   medicationsCatalog: { id: string; name: string }[];
-  specialistsCatalog: { id: string; name: string }[];
+  specialistsCatalog: { id: string; name: string; clinicProfile?: string | null }[];
   loading: boolean;
   selectedOrderForPrint: Order | null;
   setSelectedOrderForPrint: (order: Order | null) => void;
@@ -52,6 +61,34 @@ interface AppContextProps {
   setActiveAtestadoForEdit: (atestado: Atestado | null) => void;
   selectedAtestadoForPrint: Atestado | null;
   triggerDirectPrintAtestado: (atestado: Atestado) => void;
+  activeFormulaLeiteForEdit: FormulaLeite | null;
+  setActiveFormulaLeiteForEdit: (formulaLeite: FormulaLeite | null) => void;
+  selectedFormulaLeiteForPrint: FormulaLeite | null;
+  triggerDirectPrintFormulaLeite: (formulaLeite: FormulaLeite) => void;
+  selectedReceituarioForPrint: Receituario | null;
+  triggerDirectPrintReceituario: (receituario: Receituario) => void;
+  activeReceituarioForEdit: Receituario | null;
+  setActiveReceituarioForEdit: (receituario: Receituario | null) => void;
+  selectedLaudoForPrint: Laudo | null;
+  triggerDirectPrintLaudo: (laudo: Laudo) => void;
+  activeLaudoForEdit: Laudo | null;
+  setActiveLaudoForEdit: (laudo: Laudo | null) => void;
+  addReceituario: (data: {
+    clinicName?: string;
+    clinicSecretaria?: string;
+    clinicSistema?: string;
+    clinicAddress?: string;
+    clinicPhone?: string;
+    clinicCnpj?: string;
+    patientName?: string;
+    patientPhone?: string;
+    date?: string;
+    content: string;
+  }) => Promise<Receituario>;
+  updateReceituario: (updated: Receituario) => Promise<void>;
+  addLaudo: (data: Omit<Laudo, 'id' | 'createdBy'>) => Promise<Laudo>;
+  updateLaudo: (laudo: Laudo) => Promise<void>;
+  deleteLaudo: (id: string) => Promise<void>;
   activeEncProfile: EncProfileKey;
   setActiveEncProfile: (profile: EncProfileKey) => void;
   lastClinicName: string;
@@ -61,6 +98,12 @@ interface AppContextProps {
   refreshRecetas: () => Promise<void>;
   refreshEncaminhamentos: () => Promise<void>;
   refreshAtestados: () => Promise<void>;
+  refreshFormulaLeite: () => Promise<void>;
+  refreshReceituarios: () => Promise<void>;
+  refreshLaudos: () => Promise<void>;
+  refreshLaudoClinics: () => Promise<void>;
+  saveLaudoClinicProfile: (profile: Partial<LaudoClinicProfile>) => Promise<void>;
+  deleteReceituario: (id: string) => Promise<void>;
   addOrder: (orderData: {
     patientId: string;
     date: string;
@@ -83,6 +126,7 @@ interface AppContextProps {
     clinicPhone?: string;
     clinicCnpj?: string;
     patientAddress?: string;
+    patientCpf?: string;
     observations?: string;
     medications: MedicationLine[];
   }) => Promise<Receta>;
@@ -103,17 +147,37 @@ interface AppContextProps {
   addAtestado: (data: Omit<Atestado, 'id' | 'createdBy'>) => Promise<Atestado>;
   updateAtestado: (atestado: Atestado) => Promise<void>;
   deleteAtestado: (id: string) => Promise<void>;
+  addFormulaLeite: (data: Omit<FormulaLeite, 'id' | 'createdBy'>) => Promise<FormulaLeite>;
+  updateFormulaLeite: (formulaLeite: FormulaLeite) => Promise<void>;
+  deleteFormulaLeite: (id: string) => Promise<void>;
   addPatient: (patientData: Omit<Patient, 'id'>) => Promise<Patient>;
   updatePatient: (patient: Patient) => Promise<void>;
+  getLastKnownPatientPhone: (patientId: string) => string;
+  getLastKnownPatientAddress: (patientId: string) => string;
   addCustomExam: (name: string) => Promise<{ id: string; name: string }>;
   deleteCustomExam: (id: string) => Promise<void>;
   addMedication: (name: string) => Promise<{ id: string; name: string }>;
   deleteMedication: (id: string) => Promise<void>;
-  addSpecialist: (name: string) => Promise<{ id: string; name: string }>;
+  addSpecialist: (name: string, profile?: EncProfileKey) => Promise<{ id: string; name: string }>;
   deleteSpecialist: (id: string) => Promise<void>;
   addClinic: (name: string) => Promise<string>;
+  addRecetaClinic: (profile: ClinicProfile) => Promise<string>;
   logout: () => void;
   triggerDirectPrint: (order: Order) => void;
+  captureTarget: 'order' | 'receta' | 'encaminhamento' | 'receituario' | null;
+  verificationQr: string | null;
+  verificationToken: string | null;
+  triggerSignAndPrint: (kind: 'order' | 'receta' | 'encaminhamento' | 'receituario', record: Order | Receta | Encaminhamento | Receituario, opts?: { examIds?: string[] }) => Promise<void>;
+  triggerDownloadPdf: (
+    kind: 'order' | 'receta' | 'encaminhamento' | 'atestado' | 'formula-leite',
+    record: Order | Receta | Encaminhamento | Atestado | FormulaLeite,
+    filename: string
+  ) => Promise<void>;
+  // A diferencia de captureTarget (se limpia apenas termina la captura
+  // html2canvas), signPrintBusy queda activo durante TODO triggerSignAndPrint
+  // — incluida la subida y firma en el servidor, que suele ser la parte más
+  // lenta — para que el overlay de carga no desaparezca a mitad de camino.
+  signPrintBusy: boolean;
 }
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
@@ -126,8 +190,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [recetas, setRecetas] = useState<Receta[]>([]);
   const [encaminhamentos, setEncaminhamentos] = useState<Encaminhamento[]>([]);
   const [atestados, setAtestados] = useState<Atestado[]>([]);
+  const [formulaLeites, setFormulaLeites] = useState<FormulaLeite[]>([]);
+  const [receituarios, setReceituarios] = useState<Receituario[]>([]);
+  const [laudos, setLaudos] = useState<Laudo[]>([]);
   const [clinics, setClinics] = useState<string[]>([]);
   const [clinicProfiles, setClinicProfiles] = useState<ClinicProfile[]>([]);
+  const [laudoClinics, setLaudoClinics] = useState<LaudoClinicProfile[]>([]);
   const [customExamsCatalog, setCustomExamsCatalog] = useState<{ id: string; name: string }[]>([]);
   const [medicationsCatalog, setMedicationsCatalog] = useState<{ id: string; name: string }[]>([]);
   const [specialistsCatalog, setSpecialistsCatalog] = useState<{ id: string; name: string }[]>([]);
@@ -142,16 +210,30 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [selectedEncaminhamentoForPrint, setSelectedEncaminhamentoForPrint] = useState<Encaminhamento | null>(null);
   const [activeAtestadoForEdit, setActiveAtestadoForEdit] = useState<Atestado | null>(null);
   const [selectedAtestadoForPrint, setSelectedAtestadoForPrint] = useState<Atestado | null>(null);
+  const [activeFormulaLeiteForEdit, setActiveFormulaLeiteForEdit] = useState<FormulaLeite | null>(null);
+  const [selectedFormulaLeiteForPrint, setSelectedFormulaLeiteForPrint] = useState<FormulaLeite | null>(null);
+  const [selectedReceituarioForPrint, setSelectedReceituarioForPrint] = useState<Receituario | null>(null);
+  const [activeReceituarioForEdit, setActiveReceituarioForEdit] = useState<Receituario | null>(null);
+  const [selectedLaudoForPrint, setSelectedLaudoForPrint] = useState<Laudo | null>(null);
+  const [activeLaudoForEdit, setActiveLaudoForEdit] = useState<Laudo | null>(null);
+  const [captureTarget, setCaptureTarget] = useState<'order' | 'receta' | 'encaminhamento' | 'receituario' | null>(null);
+  const [verificationQr, setVerificationQr] = useState<string | null>(null);
+  const [verificationToken, setVerificationToken] = useState<string | null>(null);
+  const [signPrintBusy, setSignPrintBusy] = useState(false);
   const [activeEncProfile, setActiveEncProfileState] = useState<EncProfileKey>('neuromobius');
   const setActiveEncProfile = useCallback((profile: EncProfileKey) => {
     setActiveEncProfileState(profile);
   }, []);
-  const [lastClinicName, setLastClinicNameState] = useState<string>(() => sessionStorage.getItem('neuro_last_clinic') || '');
+  const [lastClinicName, setLastClinicNameState] = useState<string>(() => {
+    try { return localStorage.getItem('neuro_last_clinic') || ''; } catch { return ''; }
+  });
 
   const setLastClinicName = (name: string) => {
     setLastClinicNameState(name);
-    if (name) sessionStorage.setItem('neuro_last_clinic', name);
-    else sessionStorage.removeItem('neuro_last_clinic');
+    try {
+      if (name) localStorage.setItem('neuro_last_clinic', name);
+      else localStorage.removeItem('neuro_last_clinic');
+    } catch { /* almacenamiento no disponible */ }
   };
 
   // ── Auth error handler ────────────────────────────────────────────────────
@@ -165,6 +247,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setRecetas([]);
       setEncaminhamentos([]);
       setAtestados([]);
+      setFormulaLeites([]);
+      setLaudos([]);
       setCurrentView('login');
       return true;
     }
@@ -227,6 +311,39 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } catch { /* server offline — keep current state */ }
   }, [handleAuthError]);
 
+  const refreshFormulaLeite = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/formula-leite`, { headers: authHeaders() });
+      if (res.ok) {
+        setFormulaLeites(await res.json());
+      } else {
+        handleAuthError(res.status);
+      }
+    } catch { /* server offline — keep current state */ }
+  }, [handleAuthError]);
+
+  const refreshReceituarios = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/receituarios`, { headers: authHeaders() });
+      if (res.ok) {
+        setReceituarios(await res.json());
+      } else {
+        handleAuthError(res.status);
+      }
+    } catch { /* server offline — keep current state */ }
+  }, [handleAuthError]);
+
+  const refreshLaudos = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/laudos`, { headers: authHeaders() });
+      if (res.ok) {
+        setLaudos(await res.json());
+      } else {
+        handleAuthError(res.status);
+      }
+    } catch { /* server offline — keep current state */ }
+  }, [handleAuthError]);
+
   const refreshMedicationsCatalog = useCallback(async () => {
     try {
       const res = await fetch(`${API}/medications`, { headers: authHeaders() });
@@ -238,9 +355,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } catch { /* server offline — keep current state */ }
   }, [handleAuthError]);
 
-  const refreshSpecialistsCatalog = useCallback(async () => {
+  const refreshSpecialistsCatalog = useCallback(async (profile?: EncProfileKey) => {
     try {
-      const res = await fetch(`${API}/specialists`, { headers: authHeaders() });
+      const url = profile ? `${API}/specialists?profile=${encodeURIComponent(profile)}` : `${API}/specialists`;
+      const res = await fetch(url, { headers: authHeaders() });
       if (res.ok) {
         setSpecialistsCatalog(await res.json());
       } else {
@@ -272,6 +390,41 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch { /* server offline — keep current state */ }
   }, [handleAuthError]);
+
+  const refreshLaudoClinics = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/laudo-clinics`, { headers: authHeaders() });
+      if (res.ok) {
+        setLaudoClinics(await res.json());
+      } else {
+        handleAuthError(res.status);
+      }
+    } catch { /* server offline — keep current state */ }
+  }, [handleAuthError]);
+
+  const saveLaudoClinicProfile = useCallback(async (profile: Partial<LaudoClinicProfile>) => {
+    const res = await fetch(`${API}/laudo-clinics`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        clinicName: profile.name,
+        doctorName: profile.doctorName ?? null,
+        doctorCrm: profile.doctorCrm ?? null,
+        clinicNameFiscal: profile.clinicNameFiscal ?? null,
+        clinicAddress: profile.clinicAddress ?? null,
+        clinicPhone: profile.clinicPhone ?? null,
+        baseInfo: profile.baseInfo ?? null,
+        defaultNarrative: profile.defaultNarrative ?? null,
+        local: profile.local ?? null,
+        logo: profile.logo ?? null,
+        primaryColor: profile.primaryColor || '#0F4C81',
+        primaryDark: profile.primaryDark || '#0a3a63',
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al guardar el perfil de laudo.');
+    await refreshLaudoClinics();
+  }, [refreshLaudoClinics]);
 
   const refreshCustomExamsCatalog = useCallback(async () => {
     try {
@@ -329,10 +482,32 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- kicks off an async fetch; loading flag can't be derived at render time
     setLoading(true);
     Promise.all([
-      refreshPatients(), refreshOrders(), refreshRecetas(), refreshEncaminhamentos(), refreshAtestados(),
-      refreshClinics(), refreshRecetaClinics(), refreshCustomExamsCatalog(), refreshMedicationsCatalog(), refreshSpecialistsCatalog(),
+      refreshPatients(), refreshOrders(), refreshRecetas(), refreshEncaminhamentos(), refreshAtestados(), refreshFormulaLeite(),
+      refreshReceituarios(), refreshLaudos(), refreshClinics(), refreshRecetaClinics(), refreshLaudoClinics(), refreshCustomExamsCatalog(), refreshMedicationsCatalog(),
     ]).finally(() => setLoading(false));
-  }, [currentUser, refreshPatients, refreshOrders, refreshRecetas, refreshEncaminhamentos, refreshAtestados, refreshClinics, refreshRecetaClinics, refreshCustomExamsCatalog, refreshMedicationsCatalog, refreshSpecialistsCatalog]);
+  }, [currentUser, refreshPatients, refreshOrders, refreshRecetas, refreshEncaminhamentos, refreshAtestados, refreshFormulaLeite, refreshReceituarios, refreshLaudos, refreshClinics, refreshRecetaClinics, refreshLaudoClinics, refreshCustomExamsCatalog, refreshMedicationsCatalog]);
+
+  // Specialist catalog is scoped per Encaminhamento clinic profile — refetch on profile switch.
+  useEffect(() => {
+    if (!currentUser) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- kicks off an async fetch; loading flag can't be derived at render time
+    refreshSpecialistsCatalog(activeEncProfile);
+  }, [currentUser, activeEncProfile, refreshSpecialistsCatalog]);
+
+  // Precarga en segundo plano (ociosa, después del login) el chunk de
+  // pdfCapture (html2canvas+jsPDF, ~546KB) que "Assinar e Imprimir" importa
+  // dinámicamente — sin esto, el primer click de firma paga el costo de
+  // red+parseo de ese chunk ANTES de poder empezar a capturar, lo que hace
+  // que la firma se sienta mucho más lenta de lo que realmente es. Se
+  // dispara en idle time para no competir con la carga inicial de la app;
+  // para cuando el médico realmente hace click en firmar, ya está en caché.
+  useEffect(() => {
+    if (!currentUser) return;
+    const idle = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 2000));
+    const cancelIdle = window.cancelIdleCallback ?? clearTimeout;
+    const handle = idle(() => { void import('../lib/pdfCapture'); });
+    return () => cancelIdle(handle);
+  }, [currentUser]);
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   const logout = () => {
@@ -344,6 +519,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setRecetas([]);
     setEncaminhamentos([]);
     setAtestados([]);
+    setFormulaLeites([]);
+    setLaudos([]);
     setCurrentView('login');
     setLastClinicName('');
   };
@@ -376,7 +553,44 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error al actualizar paciente.');
     await refreshPatients();
+    // El nombre del paciente en los historiales (Pedidos, Recetas,
+    // Encaminhamentos, Atestados, Fórmula) sale de un JOIN vivo a `patients`,
+    // así que al renombrarlo hay que re-consultar esas listas para que la UI
+    // muestre el nombre nuevo sin necesidad de recargar la app.
+    await Promise.all([
+      refreshOrders(), refreshRecetas(), refreshEncaminhamentos(), refreshAtestados(), refreshFormulaLeite(), refreshLaudos(),
+    ]);
   };
+
+  // ── Datos de contacto "última vez conocidos" — cross-módulo ────────────
+  // El teléfono/dirección del paciente se guarda POR DOCUMENTO (no en el
+  // registro maestro de Patient — así lo pidió el usuario, para poder
+  // editarlo por sección sin afectar otras). Sin esto, un teléfono cargado
+  // en un Pedido no aparecía al crear después una Receta para el mismo
+  // paciente, aunque sea la misma persona — cada sección buscaba (cuando
+  // buscaba) solo en sus propios registros anteriores. Acá se busca en
+  // TODOS los módulos y se usa el primero que tenga el dato, sin intentar
+  // ordenar por fecha "real" entre módulos (Atestados guarda la fecha como
+  // texto libre tipo "23/07/2026", no comparable con el YYYY-MM-DD de los
+  // demás) — dentro de cada módulo sí se usa el más reciente.
+  const mostRecentWith = <T extends { patientId: string }>(list: T[], patientId: string, field: keyof T, dateField: keyof T): string => {
+    const matches = list.filter(x => x.patientId === patientId && x[field]);
+    if (!matches.length) return '';
+    return String(matches.sort((a, b) => String(b[dateField] || '').localeCompare(String(a[dateField] || '')))[0][field]);
+  };
+
+  const getLastKnownPatientPhone = useCallback((patientId: string): string => {
+    return mostRecentWith(formulaLeites, patientId, 'patientPhone', 'firstConsultDate')
+        || mostRecentWith(atestados, patientId, 'patientPhone', 'issuedAt')
+        || mostRecentWith(encaminhamentos, patientId, 'patientPhone', 'date')
+        || mostRecentWith(recetas, patientId, 'patientPhone', 'date')
+        || mostRecentWith(orders, patientId, 'patientPhone', 'date');
+  }, [orders, recetas, encaminhamentos, atestados, formulaLeites]);
+
+  const getLastKnownPatientAddress = useCallback((patientId: string): string => {
+    return mostRecentWith(atestados, patientId, 'patientAddress', 'issuedAt')
+        || mostRecentWith(recetas, patientId, 'patientAddress', 'date');
+  }, [recetas, atestados]);
 
   // ── Custom exams catalog ─────────────────────────────────────────────────
   const addCustomExam = async (name: string): Promise<{ id: string; name: string }> => {
@@ -429,11 +643,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // ── Specialist catalog ───────────────────────────────────────────────────
-  const addSpecialist = async (name: string): Promise<{ id: string; name: string }> => {
+  const addSpecialist = async (name: string, profile?: EncProfileKey): Promise<{ id: string; name: string }> => {
     const res = await fetch(`${API}/specialists`, {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, profile }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error al crear el especialista.');
@@ -466,16 +680,36 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return data.name as string;
   };
 
+  // ── Receta clinics catalog (perfil completo: Recetas + Atestados) ──────────
+  const addRecetaClinic = async (profile: ClinicProfile): Promise<string> => {
+    const res = await fetch(`${API}/receta-clinics`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(profile),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al agregar la clínica.');
+    await refreshRecetaClinics();
+    return data.name as string;
+  };
+
   // ── Orders ────────────────────────────────────────────────────────────────
   const addOrder = async (orderData: {
     patientId: string;
     date: string;
     codeCID: string;
+    patientPhone?: string;
     clinicName?: string;
+    clinicSecretaria?: string;
+    clinicSistema?: string;
+    clinicAddress?: string;
+    clinicPhone?: string;
+    clinicCnpj?: string;
     observations?: string;
     status: OrderStatus;
     exams: string[];
     examDescriptions?: Record<string, string>;
+    customExams?: Record<string, { id: string; name: string; category: string; categoryTitle?: string }>;
   }): Promise<Order> => {
     const res = await fetch(`${API}/orders`, {
       method: 'POST',
@@ -494,11 +728,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       date: updated.date,
       codeCID: updated.codeCID,
       clinicName: updated.clinicName || null,
+      clinicSecretaria: updated.clinicSecretaria || null,
+      clinicSistema: updated.clinicSistema || null,
+      clinicAddress: updated.clinicAddress || null,
+      clinicPhone: updated.clinicPhone || null,
+      clinicCnpj: updated.clinicCnpj || null,
       observations: updated.observations || null,
       status: updated.status,
       exams: updated.exams,
       examDescriptions: updated.examDescriptions || null,
       customExams: updated.customExams || null,
+      patientPhone: updated.patientPhone || null,
     };
     const res = await fetch(`${API}/orders/${updated.id}`, {
       method: 'PUT',
@@ -533,6 +773,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     clinicPhone?: string;
     clinicCnpj?: string;
     patientAddress?: string;
+    patientCpf?: string;
+    patientPhone?: string;
     observations?: string;
     medications: MedicationLine[];
   }): Promise<Receta> => {
@@ -557,8 +799,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       clinicPhone: updated.clinicPhone || null,
       clinicCnpj: updated.clinicCnpj || null,
       patientAddress: updated.patientAddress || null,
+      patientCpf: updated.patientCpf || null,
       observations: updated.observations || null,
       medications: updated.medications,
+      patientPhone: updated.patientPhone || null,
     };
     const res = await fetch(`${API}/recetas/${updated.id}`, {
       method: 'PUT',
@@ -587,9 +831,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     patientId: string;
     date?: string;
     patientAge?: string;
+    patientPhone?: string;
     hd?: string;
     motivo?: string;
     clinicName?: string;
+    clinicSecretaria?: string;
+    clinicSistema?: string;
+    clinicAddress?: string;
+    clinicPhone?: string;
+    clinicCnpj?: string;
     templateId?: string;
     specialists: string[];
   }): Promise<Encaminhamento> => {
@@ -611,8 +861,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       hd: updated.hd || null,
       motivo: updated.motivo || null,
       clinicName: updated.clinicName || null,
+      clinicSecretaria: updated.clinicSecretaria || null,
+      clinicSistema: updated.clinicSistema || null,
+      clinicAddress: updated.clinicAddress || null,
+      clinicPhone: updated.clinicPhone || null,
+      clinicCnpj: updated.clinicCnpj || null,
       templateId: updated.templateId || 'neuromobius',
       specialists: updated.specialists,
+      patientPhone: updated.patientPhone || null,
     };
     const res = await fetch(`${API}/encaminhamentos/${updated.id}`, {
       method: 'PUT',
@@ -675,15 +931,153 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setAtestados(prev => prev.filter(a => a.id !== id));
   };
 
+  // ── Fórmulas Infantis Especiais (ficha CNES/leite) ──────────────────────────
+  const addFormulaLeite = async (data: Omit<FormulaLeite, 'id' | 'createdBy'>): Promise<FormulaLeite> => {
+    const res = await fetch(`${API}/formula-leite`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(data),
+    });
+    const resData = await res.json();
+    if (!res.ok) throw new Error(resData.error || 'Error al registrar la ficha.');
+    await refreshFormulaLeite();
+    return resData as FormulaLeite;
+  };
+
+  const updateFormulaLeite = async (updated: FormulaLeite): Promise<void> => {
+    const payload: Record<string, unknown> = { ...updated };
+    delete payload.id;
+    delete payload.createdBy;
+    const res = await fetch(`${API}/formula-leite/${updated.id}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al actualizar la ficha.');
+    await refreshFormulaLeite();
+  };
+
+  const deleteFormulaLeite = async (id: string): Promise<void> => {
+    const res = await fetch(`${API}/formula-leite/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Error al eliminar la ficha.');
+    }
+    setFormulaLeites(prev => prev.filter(f => f.id !== id));
+  };
+
+  // ── Receituário ──────────────────────────────────────────────────────────
+  const addReceituario = async (data: {
+    clinicName?: string;
+    clinicSecretaria?: string;
+    clinicSistema?: string;
+    clinicAddress?: string;
+    clinicPhone?: string;
+    clinicCnpj?: string;
+    patientName?: string;
+    patientPhone?: string;
+    date?: string;
+    content: string;
+  }): Promise<Receituario> => {
+    const res = await fetch(`${API}/receituarios`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(data),
+    });
+    const resData = await res.json();
+    if (!res.ok) throw new Error(resData.error || 'Error al registrar receituário.');
+    await refreshReceituarios();
+    return resData as Receituario;
+  };
+
+  const updateReceituario = async (updated: Receituario): Promise<void> => {
+    const payload = {
+      clinicName: updated.clinicName || null,
+      clinicSecretaria: updated.clinicSecretaria || null,
+      clinicSistema: updated.clinicSistema || null,
+      clinicAddress: updated.clinicAddress || null,
+      clinicPhone: updated.clinicPhone || null,
+      clinicCnpj: updated.clinicCnpj || null,
+      patientName: updated.patientName || null,
+      patientPhone: updated.patientPhone || null,
+      date: updated.date || null,
+      content: updated.content,
+    };
+    const res = await fetch(`${API}/receituarios/${updated.id}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al actualizar receituário.');
+    await refreshReceituarios();
+  };
+
+  const deleteReceituario = async (id: string): Promise<void> => {
+    const res = await fetch(`${API}/receituarios/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Error al eliminar receituário.');
+    }
+    setReceituarios(prev => prev.filter(r => r.id !== id));
+  };
+
+  // ── Laudos (Laudo Pericial Médico por clínica) ───────────────────────────
+  const addLaudo = async (data: Omit<Laudo, 'id' | 'createdBy'>): Promise<Laudo> => {
+    const res = await fetch(`${API}/laudos`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(data),
+    });
+    const resData = await res.json();
+    if (!res.ok) throw new Error(resData.error || 'Error al registrar laudo.');
+    await refreshLaudos();
+    return resData as Laudo;
+  };
+
+  const updateLaudo = async (updated: Laudo): Promise<void> => {
+    const payload: Record<string, unknown> = { ...updated };
+    delete payload.id;
+    delete payload.createdBy;
+    const res = await fetch(`${API}/laudos/${updated.id}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al actualizar laudo.');
+    await refreshLaudos();
+  };
+
+  const deleteLaudo = async (id: string): Promise<void> => {
+    const res = await fetch(`${API}/laudos/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Error al eliminar laudo.');
+    }
+    setLaudos(prev => prev.filter(l => l.id !== id));
+  };
+
   // ── Print isolation ──────────────────────────────────────────────────────
-  // Cada sección (pedidos, recetas, encaminhamentos, atestados) imprime solo
-  // su propia plantilla. Además de limpiar el estado de las otras, se marca en
-  // <body> cuál es el tipo activo (`print-order|receta|encaminhamento|atestado`)
-  // y el CSS solo revela el `.print-area` correspondiente — así un nodo
-  // obsoleto jamás se imprime junto al actual.
-  const setActivePrintTarget = (target: 'order' | 'receta' | 'encaminhamento' | 'atestado' | null) => {
+  // Cada sección (pedidos, recetas, encaminhamentos, atestados, fórmulas
+  // infantis) imprime solo su propia plantilla. Además de limpiar el estado
+  // de las otras, se marca en <body> cuál es el tipo activo
+  // (`print-order|receta|encaminhamento|atestado|formula-leite`) y el CSS
+  // solo revela el `.print-area` correspondiente — así un nodo obsoleto
+  // jamás se imprime junto al actual.
+  const setActivePrintTarget = (target: 'order' | 'receta' | 'encaminhamento' | 'atestado' | 'formula-leite' | 'receituario' | 'laudo' | null) => {
     const body = document.body;
-    body.classList.remove('print-order', 'print-receta', 'print-encaminhamento', 'print-atestado');
+    body.classList.remove('print-order', 'print-receta', 'print-encaminhamento', 'print-atestado', 'print-formula-leite', 'print-receituario', 'print-laudo');
     if (target) body.classList.add(`print-${target}`);
   };
 
@@ -696,31 +1090,35 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
   }, []);
 
-  // Espera a que React pinte la plantilla y a que sus imágenes terminen de cargar
-  // antes de abrir el diálogo de impresión (evita vista previa vacía o sin logo).
-  const printAfterRender = () => {
+  // Espera a que React pinte la plantilla y a que sus imágenes terminen de
+  // cargar — usado tanto por printAfterRender() (dispara window.print())
+  // como por triggerSignAndPrint() (dispara una captura html2canvas en vez
+  // de imprimir), que necesitan exactamente la misma espera.
+  const waitForPrintAreaReady = (): Promise<void> => new Promise(resolve => {
     setTimeout(() => {
-      // Solo debe imprimirse una vez: si las imágenes cargan antes del
-      // fallback de 2s, hay que cancelarlo — si no, window.print() se
-      // dispara dos veces (una al cargar, otra al vencer el timeout) y
-      // aparece un segundo diálogo de impresión fantasma.
-      let printed = false;
-      const printOnce = () => { if (printed) return; printed = true; window.print(); };
+      let done = false;
+      const finish = () => { if (done) return; done = true; resolve(); };
 
       const pending = Array.from(document.querySelectorAll<HTMLImageElement>('.print-area img')).filter(img => !img.complete);
-      if (pending.length === 0) { printOnce(); return; }
+      if (pending.length === 0) { finish(); return; }
 
       let remaining = pending.length;
-      const fallback = setTimeout(printOnce, 2000);
+      const fallback = setTimeout(finish, 2000);
       const onDone = () => {
         remaining -= 1;
-        if (remaining === 0) { clearTimeout(fallback); printOnce(); }
+        if (remaining === 0) { clearTimeout(fallback); finish(); }
       };
       pending.forEach(img => {
         img.addEventListener('load', onDone, { once: true });
         img.addEventListener('error', onDone, { once: true });
       });
     }, 150);
+  });
+
+  // Espera a que React pinte la plantilla y a que sus imágenes terminen de cargar
+  // antes de abrir el diálogo de impresión (evita vista previa vacía o sin logo).
+  const printAfterRender = () => {
+    void waitForPrintAreaReady().then(() => window.print());
   };
 
   useEffect(() => {
@@ -729,6 +1127,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setSelectedRecetaForPrint(null);
       setSelectedEncaminhamentoForPrint(null);
       setSelectedAtestadoForPrint(null);
+      setSelectedFormulaLeiteForPrint(null);
+      setSelectedReceituarioForPrint(null);
+      setSelectedLaudoForPrint(null);
       setRecetaPrintCopies(1);
       setActivePrintTarget(null);
     };
@@ -740,6 +1141,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setSelectedOrderForPrint(null);
     setSelectedEncaminhamentoForPrint(null);
     setSelectedAtestadoForPrint(null);
+    setSelectedFormulaLeiteForPrint(null);
+    setSelectedReceituarioForPrint(null);
     setOrderPendingPrintSelection(null);
     setSelectedRecetaForPrint(receta);
     setActivePrintTarget('receta');
@@ -750,6 +1153,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setSelectedOrderForPrint(null);
     setSelectedRecetaForPrint(null);
     setSelectedAtestadoForPrint(null);
+    setSelectedFormulaLeiteForPrint(null);
+    setSelectedReceituarioForPrint(null);
     setOrderPendingPrintSelection(null);
     setSelectedEncaminhamentoForPrint(encaminhamento);
     setActivePrintTarget('encaminhamento');
@@ -760,9 +1165,49 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setSelectedOrderForPrint(null);
     setSelectedRecetaForPrint(null);
     setSelectedEncaminhamentoForPrint(null);
+    setSelectedFormulaLeiteForPrint(null);
+    setSelectedReceituarioForPrint(null);
     setOrderPendingPrintSelection(null);
     setSelectedAtestadoForPrint(atestado);
     setActivePrintTarget('atestado');
+    printAfterRender();
+  };
+
+  const triggerDirectPrintFormulaLeite = (formulaLeite: FormulaLeite) => {
+    setSelectedOrderForPrint(null);
+    setSelectedRecetaForPrint(null);
+    setSelectedEncaminhamentoForPrint(null);
+    setSelectedAtestadoForPrint(null);
+    setSelectedReceituarioForPrint(null);
+    setOrderPendingPrintSelection(null);
+    setSelectedFormulaLeiteForPrint(formulaLeite);
+    setActivePrintTarget('formula-leite');
+    printAfterRender();
+  };
+
+  const triggerDirectPrintReceituario = (receituario: Receituario) => {
+    setSelectedOrderForPrint(null);
+    setSelectedRecetaForPrint(null);
+    setSelectedEncaminhamentoForPrint(null);
+    setSelectedAtestadoForPrint(null);
+    setSelectedFormulaLeiteForPrint(null);
+    setSelectedLaudoForPrint(null);
+    setOrderPendingPrintSelection(null);
+    setSelectedReceituarioForPrint(receituario);
+    setActivePrintTarget('receituario');
+    printAfterRender();
+  };
+
+  const triggerDirectPrintLaudo = (laudo: Laudo) => {
+    setSelectedOrderForPrint(null);
+    setSelectedRecetaForPrint(null);
+    setSelectedEncaminhamentoForPrint(null);
+    setSelectedAtestadoForPrint(null);
+    setSelectedFormulaLeiteForPrint(null);
+    setSelectedReceituarioForPrint(null);
+    setOrderPendingPrintSelection(null);
+    setSelectedLaudoForPrint(laudo);
+    setActivePrintTarget('laudo');
     printAfterRender();
   };
 
@@ -770,6 +1215,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setSelectedRecetaForPrint(null);
     setSelectedEncaminhamentoForPrint(null);
     setSelectedAtestadoForPrint(null);
+    setSelectedFormulaLeiteForPrint(null);
+    setSelectedReceituarioForPrint(null);
+    setSelectedLaudoForPrint(null);
     setOrderPendingPrintSelection(order);
   };
 
@@ -778,6 +1226,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setSelectedRecetaForPrint(null);
     setSelectedEncaminhamentoForPrint(null);
     setSelectedAtestadoForPrint(null);
+    setSelectedFormulaLeiteForPrint(null);
+    setSelectedReceituarioForPrint(null);
+    setSelectedLaudoForPrint(null);
     setSelectedOrderForPrint({ ...orderPendingPrintSelection, exams: examIds });
     setOrderPendingPrintSelection(null);
     setActivePrintTarget('order');
@@ -786,15 +1237,170 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const cancelPrintSelection = () => setOrderPendingPrintSelection(null);
 
+  // Descarga un PDF SIN firmar (sin llamar al servidor) de cualquiera de
+  // los 5 documentos, capturando la plantilla real de impresión con
+  // html2canvas — mismo mecanismo que triggerSignAndPrint(), pero sin el
+  // paso de subir/firmar en el servidor: solo captura y descarga. Usado
+  // por el botón "Enviar por WhatsApp" (ver New*.tsx): como wa.me no puede
+  // adjuntar archivos automáticamente a un chat, se descarga el PDF a la
+  // vez que se abre WhatsApp, para que el médico lo adjunte a mano.
+  const triggerDownloadPdf = async (
+    kind: 'order' | 'receta' | 'encaminhamento' | 'atestado' | 'formula-leite',
+    record: Order | Receta | Encaminhamento | Atestado | FormulaLeite,
+    filename: string
+  ): Promise<void> => {
+    setSelectedOrderForPrint(null);
+    setSelectedRecetaForPrint(null);
+    setSelectedEncaminhamentoForPrint(null);
+    setSelectedAtestadoForPrint(null);
+    setSelectedFormulaLeiteForPrint(null);
+    setSelectedLaudoForPrint(null);
+    setOrderPendingPrintSelection(null);
+
+    if (kind === 'order') {
+      setSelectedOrderForPrint(record as Order);
+    } else if (kind === 'receta') {
+      setRecetaPrintCopies(1);
+      setSelectedRecetaForPrint(record as Receta);
+    } else if (kind === 'encaminhamento') {
+      setSelectedEncaminhamentoForPrint(record as Encaminhamento);
+    } else if (kind === 'atestado') {
+      setSelectedAtestadoForPrint(record as Atestado);
+    } else {
+      setSelectedFormulaLeiteForPrint(record as FormulaLeite);
+    }
+
+    document.body.classList.add(`capturing-${kind}`);
+    try {
+      await waitForPrintAreaReady();
+      const { capturePrintAreaToPdf } = await import('../lib/pdfCapture');
+      const { blob } = await capturePrintAreaToPdf(kind);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } finally {
+      document.body.classList.remove(`capturing-${kind}`);
+      setSelectedOrderForPrint(null);
+      setSelectedRecetaForPrint(null);
+      setSelectedEncaminhamentoForPrint(null);
+      setSelectedAtestadoForPrint(null);
+      setSelectedFormulaLeiteForPrint(null);
+    }
+  };
+
+  // Pedidos y Recetas firman capturando la plantilla REAL de impresión con
+  // html2canvas (en vez de reconstruir el diseño del lado del servidor con
+  // TCPDF — ver src/lib/pdfCapture.ts y server-php/lib/signing.php para el
+  // porqué). Selecciona el registro igual que triggerDirectPrint*/
+  // confirmPrintSelection, pide el token de verificación (para el QR que
+  // dibuja la propia plantilla), revela la plantilla fuera de pantalla
+  // (`capturing-{kind}`), captura, y recién ahí sube el PDF para firmar.
+  const triggerSignAndPrint = async (
+    kind: 'order' | 'receta' | 'encaminhamento' | 'receituario',
+    record: Order | Receta | Encaminhamento | Receituario,
+    opts?: { examIds?: string[] }
+  ): Promise<void> => {
+    // Todo el cuerpo (no solo la parte de red/captura) va dentro de este
+    // try/finally: signPrintBusy tiene que resetearse pase lo que pase, para
+    // que un throw temprano (antes de llegar al try interno de abajo) no
+    // deje el overlay de "Firmando documento…" trabado para siempre
+    // tapando toda la app (bug real: bloqueaba hasta el botón de firmar).
+    if (signPrintBusy) return;
+    setSignPrintBusy(true);
+    try {
+      setSelectedAtestadoForPrint(null);
+      setSelectedFormulaLeiteForPrint(null);
+      setOrderPendingPrintSelection(null);
+
+      if (kind === 'order') {
+        setSelectedRecetaForPrint(null);
+        setSelectedEncaminhamentoForPrint(null);
+        setSelectedReceituarioForPrint(null);
+        const order = record as Order;
+        setSelectedOrderForPrint(opts?.examIds ? { ...order, exams: opts.examIds } : order);
+      } else if (kind === 'receta') {
+        setSelectedOrderForPrint(null);
+        setSelectedEncaminhamentoForPrint(null);
+        setSelectedReceituarioForPrint(null);
+        // recetaPrintCopies NO se toca acá: respeta lo que haya puesto el
+        // llamador (el checkbox "imprimir 2 vías" de NewReceta.tsx antes de
+        // llamar a esta función, o el valor por defecto 1 si viene del
+        // listado, que no expone ese checkbox).
+        setSelectedRecetaForPrint(record as Receta);
+      } else if (kind === 'encaminhamento') {
+        setSelectedOrderForPrint(null);
+        setSelectedRecetaForPrint(null);
+        setSelectedReceituarioForPrint(null);
+        setSelectedEncaminhamentoForPrint(record as Encaminhamento);
+      } else {
+        setSelectedOrderForPrint(null);
+        setSelectedRecetaForPrint(null);
+        setSelectedEncaminhamentoForPrint(null);
+        setSelectedReceituarioForPrint(record as Receituario);
+      }
+      setCaptureTarget(kind);
+
+      const apiKind = kind === 'order' ? 'orders' : kind === 'receta' ? 'recetas' : kind === 'encaminhamento' ? 'encaminhamentos' : 'receituarios';
+
+      try {
+        // Se dispara en paralelo con fetchVerificationInfo/waitForPrintAreaReady
+        // (en vez de esperar a este punto) para que la descarga del chunk
+        // (html2canvas + jsPDF) se solape con esa espera de red en vez de
+        // sumarse como latencia extra recién acá.
+        const pdfCaptureModule = import('../lib/pdfCapture');
+
+        const { token, qrContent } = await fetchVerificationInfo(apiKind, record.id);
+        setVerificationQr(qrContent);
+        setVerificationToken(token);
+
+        document.body.classList.add(`capturing-${kind}`);
+        await waitForPrintAreaReady();
+
+        const { capturePrintAreaToPdf } = await pdfCaptureModule;
+        let captured: { blob: Blob; pageHeightsMm: number[] };
+        try {
+          captured = await capturePrintAreaToPdf(kind);
+        } finally {
+          document.body.classList.remove(`capturing-${kind}`);
+          setVerificationQr(null);
+          setVerificationToken(null);
+          setCaptureTarget(null);
+        }
+
+        const signedBlob = await uploadAndSignPdf(apiKind, record.id, captured.blob, {
+          contentHeights: captured.pageHeightsMm.map(h => h.toFixed(1)).join(','),
+        });
+        await printPdfBlob(signedBlob);
+      } finally {
+        setSelectedOrderForPrint(null);
+        setSelectedRecetaForPrint(null);
+        setSelectedEncaminhamentoForPrint(null);
+        setSelectedReceituarioForPrint(null);
+        setCaptureTarget(null);
+        setVerificationQr(null);
+        setVerificationToken(null);
+        document.body.classList.remove('capturing-order', 'capturing-receta', 'capturing-encaminhamento', 'capturing-receituario');
+      }
+    } finally {
+      setSignPrintBusy(false);
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
         currentView, setCurrentView,
         currentUser, setCurrentUser,
-        patients, orders, recetas, encaminhamentos, atestados,
+        patients, orders, recetas, encaminhamentos, atestados, formulaLeites, receituarios, laudos,
         exams: EXAMS,
         clinics,
         clinicProfiles,
+        laudoClinics,
         customExamsCatalog,
         medicationsCatalog,
         specialistsCatalog,
@@ -809,18 +1415,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         selectedEncaminhamentoForPrint, triggerDirectPrintEncaminhamento,
         activeAtestadoForEdit, setActiveAtestadoForEdit,
         selectedAtestadoForPrint, triggerDirectPrintAtestado,
+        activeFormulaLeiteForEdit, setActiveFormulaLeiteForEdit,
+        selectedFormulaLeiteForPrint, triggerDirectPrintFormulaLeite,
+        selectedReceituarioForPrint, triggerDirectPrintReceituario,
+        activeReceituarioForEdit, setActiveReceituarioForEdit,
+        selectedLaudoForPrint, triggerDirectPrintLaudo,
+        activeLaudoForEdit, setActiveLaudoForEdit,
+        addReceituario, updateReceituario, deleteReceituario,
+        addLaudo, updateLaudo, deleteLaudo,
         activeEncProfile, setActiveEncProfile,
         lastClinicName, setLastClinicName,
-        refreshPatients, refreshOrders, refreshRecetas, refreshEncaminhamentos, refreshAtestados,
+refreshPatients, refreshOrders, refreshRecetas, refreshEncaminhamentos, refreshAtestados, refreshFormulaLeite, refreshReceituarios, refreshLaudos, refreshLaudoClinics,
         addOrder, updateOrder, deleteOrder,
         addReceta, updateReceta, deleteReceta,
         addEncaminhamento, updateEncaminhamento, deleteEncaminhamento,
         addAtestado, updateAtestado, deleteAtestado,
-        addPatient, updatePatient, addCustomExam, deleteCustomExam,
+        addFormulaLeite, updateFormulaLeite, deleteFormulaLeite,
+        addPatient, updatePatient, getLastKnownPatientPhone, getLastKnownPatientAddress, addCustomExam, deleteCustomExam,
         addMedication, deleteMedication,
         addSpecialist, deleteSpecialist,
-        addClinic,
+        addClinic, addRecetaClinic, saveLaudoClinicProfile,
         logout, triggerDirectPrint,
+        captureTarget, verificationQr, verificationToken, triggerSignAndPrint, signPrintBusy,
+        triggerDownloadPdf,
       }}
     >
       {children}

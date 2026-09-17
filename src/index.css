@@ -111,6 +111,51 @@
   }
 }
 
+/* ── Rich text field (negrita + subrayado) ─────────────────────────────── */
+.rich-text-field {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.rich-text-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--muted) / 0.4);
+}
+.rich-text-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  color: hsl(var(--muted-foreground));
+  transition: background-color 0.15s, color 0.15s;
+}
+.rich-text-btn:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+.rich-text-btn.is-active { background: hsl(var(--primary) / 0.12); color: hsl(var(--primary)); }
+.rich-text-input {
+  flex: 1;
+  outline: none;
+  width: 100%;
+  min-height: 72px;
+  padding: 8px 12px;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+.rich-text-input[data-empty="true"]::before {
+  content: attr(data-placeholder);
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+}
+.rich-text-input b,
+.rich-text-input strong { font-weight: 700; }
+.rich-text-input u { text-decoration: underline; }
+
 /* ── Print isolation ───────────────────────────────────────────────────── */
 .print-area { display: none; }
 
@@ -124,9 +169,104 @@
   body.print-order .print-area-order,
   body.print-receta .print-area-receta,
   body.print-encaminhamento .print-area-encaminhamento,
-  body.print-atestado .print-area-atestado {
+  body.print-atestado .print-area-atestado,
+  body.print-formula-leite .print-area-formula-leite,
+  body.print-receituario .print-area-receituario,
+  body.print-laudo .print-area-laudo {
     display: block !important; position: static !important; background: white !important;
   }
   .print-area > div { break-inside: avoid; }
+  /* El laudo es un flujo de altura medida (N×297mm): su contenedor SÍ debe
+     partirse entre páginas, de lo contrario una segunda hoja quedaría vacía
+     o la firma caería mal. Además debe ser relativo para anclar las marcas
+     de agua absolutas (una por página, top = i×297mm). */
+  body.print-laudo .print-area-laudo { position: relative !important; }
+  body.print-laudo .print-area-laudo > div { break-inside: auto; break-after: auto; }
   .no-print { display: none !important; }
+}
+
+/* ── PDF capture (Assinar e Imprimir) ────────────────────────────────────
+   Revela la plantilla de impresión REAL fuera de pantalla (no display:none
+   — html2canvas no puede rasterizar elementos sin caja de layout) mientras
+   dura una captura de firma. No es @media print: corre en pantalla normal,
+   así que ambos bloques son independientes — "Imprimir" nunca pasa por acá. */
+body.capturing-order .print-area-order,
+body.capturing-receta .print-area-receta,
+body.capturing-encaminhamento .print-area-encaminhamento,
+body.capturing-receituario .print-area-receituario {
+  display: block !important;
+  position: fixed !important;
+  top: 0;
+  left: -10000px;
+  z-index: -1;
+  background: #fff !important;
+}
+
+/* Ancho A4 real forzado (en pantalla nada más lo garantiza) + una zona en
+   blanco reservada al pie de cada página para que la firma digital real
+   que agrega el servidor después no choque con el contenido ya capturado. */
+body[class*="capturing-"] .print-area > div {
+  width: 210mm !important;
+  box-sizing: border-box !important;
+  padding-bottom: 25mm !important;
+}
+
+/* html2canvas (usado para capturar la plantilla real y firmarla) exagera
+   brutalmente cualquier letter-spacing (incluso valores chicos, 0.03-0.14em)
+   al rasterizar texto — las letras/palabras terminan con huecos enormes
+   ("E N C A M I N H A M E N T O", "Assinat u r a"), un bug confirmado
+   comparando el PDF firmado real: los campos SIN letter-spacing (Nome,
+   Clínica, fecha) salen perfectos, todo lo que sí lo usa (títulos,
+   etiquetas en mayúscula, cartão QR) sale roto. En pantalla y en "Imprimir"
+   (impresión real del navegador, no captura) el letter-spacing se ve bien —
+   por eso se anula acá, solo durante la captura, en vez de sacarlo del
+   diseño entero. */
+body[class*="capturing-"] .print-area * {
+  letter-spacing: normal !important;
+}
+
+/* Solo Recetas (no Pedidos/Encaminhamentos): fuerza la página a ocupar
+   siempre los 297mm completos durante la captura de firma, para que el
+   bloque QR/firma (empujado al fondo por el spacer flex:1 del componente)
+   quede en una Y SIEMPRE igual, sin importar cuántos medicamentos tenga la
+   receta. Antes, sin esto, el bloque QR/firma aparecía en una posición
+   distinta en cada receta (según el largo del contenido), y el texto legal
+   ICP-Brasil que el servidor agrega después a una distancia fija del borde
+   no tenía forma de acertarle siempre. Encaminhamentos ya tiene su propio
+   min-height:297mm puesto directo en el componente (mismo efecto); acá se
+   hace vía CSS, con selector específico, para no tocar Pedidos (que sí
+   necesita su alto real variable — ver signUploadedPdf() en signing.php). */
+body.capturing-receta .print-area-receta > div {
+  min-height: 297mm;
+}
+
+/* Receituário: la hoja A4 completa (min-height:297mm + flex-column) va
+   directo en el componente para todos los casos (firmando o no), igual que
+   Encaminhamentos — no hace falta forzarla acá por separado. */
+
+/* El título "RECEITUÁRIO MÉDICO" se dibuja como texto SVG con relleno
+   degradado (ver PrintReceituarioTemplate.tsx) — así el degradado sale igual
+   al imprimir y al firmar (html2canvas rasteriza el SVG sin problemas), sin
+   el artefacto de "barra" que dejaba el background-clip:text en la captura. */
+
+/* ── Historiales: tablas compactas que caben sin scroll horizontal ─────────
+   El px-6 (24px por lado) forzaba más ancho del disponible con 6-7 columnas
+   (peor con el escalado de pantalla de Windows a 125/150%): aparecía la barra
+   de scroll horizontal y había que arrastrarla para ver las últimas columnas.
+   Se reduce el padding lateral de las celdas; el overflow-x-auto del contenedor
+   queda solo como red de seguridad para nombres excepcionalmente largos.
+   Especificidad `.data-table td` (0,1,1) > `.px-6` (0,1,0), así gana sin
+   !important. Las tablas de listados solo se muestran en xl (ver *List.tsx),
+   donde el ancho ya alcanza; en pantallas chicas se usan tarjetas. */
+.data-table th,
+.data-table td {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+@media (min-width: 1536px) {
+  .data-table th,
+  .data-table td {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
 }

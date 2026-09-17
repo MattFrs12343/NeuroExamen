@@ -17,6 +17,16 @@ dist-ssr
 .env.*
 !.env.example
 
+# Certificados de firma digital — nunca se suben al repo, se transfieren
+# directo al servidor por scp.
+*.pfx
+*.p12
+server-php/config/certs/
+
+# Composer (si se llega a instalar localmente para pruebas, no se versiona)
+server-php/vendor/
+server-php/composer.lock
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

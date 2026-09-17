@@ -25,6 +25,7 @@ export const INITIAL_EXAMS: Exam[] = [
   // ── Pruebas cognitivas ────────────────────────────────────────────────────
   { id: 'cog-01', category: 'cat_cog', name: 'exam_cog_01' },
   { id: 'cog-02', category: 'cat_cog', name: 'exam_cog_02' },
+  { id: 'cog-03', category: 'cat_cog', name: 'exam_cog_03' },
 
   // ── Dinamómetro ───────────────────────────────────────────────────────────
   { id: 'din-01', category: 'cat_din', name: 'exam_din_01' },
@@ -48,4 +49,7 @@ export const INITIAL_EXAMS: Exam[] = [
   // ── Estesiometro ──────────────────────────────────────────────────────────
   { id: 'est-01', category: 'cat_est', name: 'exam_est_01' },
   { id: 'est-02', category: 'cat_est', name: 'exam_est_02' },
+
+  // ── Equilíbrio ────────────────────────────────────────────────────────────
+  { id: 'equ-01', category: 'cat_equ', name: 'exam_equ_01' },
 ];

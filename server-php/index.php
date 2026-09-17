@@ -47,12 +47,20 @@ if ($uri === '/receta-clinics') {
     require __DIR__ . '/api/receta-clinics/index.php'; exit;
 }
 
+// ── Perfiles de Laudo por clínica (datos del emisor, base info, narrativa) ────
+if ($uri === '/laudo-clinics') {
+    require __DIR__ . '/api/laudo-clinics/index.php'; exit;
+}
+
 // ── Estudios personalizados ──────────────────────────────────────────────────
 if ($uri === '/custom-exams' || preg_match('#^/custom-exams/[^/]+$#', $uri)) {
     require __DIR__ . '/api/custom-exams/index.php'; exit;
 }
 
-// ── Orders PDF  (antes que la ruta genérica de orders) ───────────────────────
+// ── Orders firmado digitalmente / PDF legacy (antes que la ruta genérica) ────
+if (preg_match('#^/orders/[^/]+/signed-pdf$#', $uri)) {
+    require __DIR__ . '/api/orders/signed-pdf.php'; exit;
+}
 if (preg_match('#^/orders/[^/]+/pdf$#', $uri)) {
     require __DIR__ . '/api/orders/pdf.php'; exit;
 }
@@ -62,9 +70,34 @@ if ($uri === '/orders' || preg_match('#^/orders/[^/]+$#', $uri)) {
     require __DIR__ . '/api/orders/index.php'; exit;
 }
 
+// ── Receta firmada digitalmente (antes que la ruta genérica de recetas) ─────
+if (preg_match('#^/recetas/[^/]+/signed-pdf$#', $uri)) {
+    require __DIR__ . '/api/recetas/signed-pdf.php'; exit;
+}
+
 // ── Recetas ───────────────────────────────────────────────────────────────────
 if ($uri === '/recetas' || preg_match('#^/recetas/[^/]+$#', $uri)) {
     require __DIR__ . '/api/recetas/index.php'; exit;
+}
+
+// ── Receituário firmado digitalmente (antes que la ruta genérica) ───────────
+if (preg_match('#^/receituarios/[^/]+/signed-pdf$#', $uri)) {
+    require __DIR__ . '/api/receituarios/signed-pdf.php'; exit;
+}
+
+// ── Receituário (sin listado — solo crear al firmar; ver receituarios/README) ─
+if ($uri === '/receituarios' || preg_match('#^/receituarios/[^/]+$#', $uri)) {
+    require __DIR__ . '/api/receituarios/index.php'; exit;
+}
+
+// ── Laudo Pericial firmado digitalmente (antes que la ruta genérica) ───────
+if (preg_match('#^/laudos/[^/]+/signed-pdf$#', $uri)) {
+    require __DIR__ . '/api/laudos/signed-pdf.php'; exit;
+}
+
+// ── Laudos (Laudo Pericial Médico por clínica) ─────────────────────────────
+if ($uri === '/laudos' || preg_match('#^/laudos/[^/]+$#', $uri)) {
+    require __DIR__ . '/api/laudos/index.php'; exit;
 }
 
 // ── Catálogo de medicamentos ─────────────────────────────────────────────────
@@ -77,14 +110,41 @@ if ($uri === '/specialists' || preg_match('#^/specialists/[^/]+$#', $uri)) {
     require __DIR__ . '/api/specialists/index.php'; exit;
 }
 
+// ── Encaminhamento firmado digitalmente (antes que la ruta genérica) ────────
+if (preg_match('#^/encaminhamentos/[^/]+/signed-pdf$#', $uri)) {
+    require __DIR__ . '/api/encaminhamentos/signed-pdf.php'; exit;
+}
+
 // ── Encaminhamentos ────────────────────────────────────────────────────────────
 if ($uri === '/encaminhamentos' || preg_match('#^/encaminhamentos/[^/]+$#', $uri)) {
     require __DIR__ . '/api/encaminhamentos/index.php'; exit;
 }
 
+// ── Atestado firmado digitalmente (antes que la ruta genérica de atestados) ──
+if (preg_match('#^/atestados/[^/]+/signed-pdf$#', $uri)) {
+    require __DIR__ . '/api/atestados/signed-pdf.php'; exit;
+}
+
 // ── Atestados ──────────────────────────────────────────────────────────────────
 if ($uri === '/atestados' || preg_match('#^/atestados/[^/]+$#', $uri)) {
     require __DIR__ . '/api/atestados/index.php'; exit;
+}
+
+// ── Fórmula Infantil firmada digitalmente (antes que la ruta genérica) ──────
+if (preg_match('#^/formula-leite/[^/]+/signed-pdf$#', $uri)) {
+    require __DIR__ . '/api/formula-leite/signed-pdf.php'; exit;
+}
+
+// ── Fórmulas Infantis Especiais (ficha CNES/leite) ────────────────────────────
+if ($uri === '/formula-leite' || preg_match('#^/formula-leite/[^/]+$#', $uri)) {
+    require __DIR__ . '/api/formula-leite/index.php'; exit;
+}
+
+// ── Verificação pública de documentos firmados (sin autenticación) ────────────
+// /verificar/{kind}/{token} — kind = atestados|recetas|orders|encaminhamentos|formula-leite
+// /verificar/{kind}/{token}/pdf — descarga del PDF firmado (revalida el código de acceso adentro)
+if (preg_match('#^/verificar/[^/]+/[^/]+(/pdf)?$#', $uri)) {
+    require __DIR__ . '/api/verificar/index.php'; exit;
 }
 
 // ── 404 ───────────────────────────────────────────────────────────────────────

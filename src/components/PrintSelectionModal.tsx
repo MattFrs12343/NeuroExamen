@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
-import { Printer, X } from 'lucide-react';
+import { Printer, X, FileSignature } from 'lucide-react';
 import { Button } from './ui/button';
-import { cn } from '../lib/utils';
+import { cn, getErrorMessage } from '../lib/utils';
 
 interface PrintSelectionEntry {
   id: string;
@@ -13,10 +13,11 @@ interface PrintSelectionEntry {
 
 export const PrintSelectionModal: React.FC = () => {
   const { t } = useTranslation();
-  const { orderPendingPrintSelection, exams, confirmPrintSelection, cancelPrintSelection } = useApp();
+  const { orderPendingPrintSelection, exams, confirmPrintSelection, cancelPrintSelection, triggerSignAndPrint } = useApp();
 
   const [checked, setChecked] = useState<Record<number, boolean>>({});
   const [checkedForOrderId, setCheckedForOrderId] = useState<string | null>(null);
+  const [signing, setSigning] = useState(false);
 
   const order = orderPendingPrintSelection;
 
@@ -50,13 +51,28 @@ export const PrintSelectionModal: React.FC = () => {
   const selectAll = () => setChecked(Object.fromEntries(entries.map((_, idx) => [idx, true])));
   const selectNone = () => setChecked(Object.fromEntries(entries.map((_, idx) => [idx, false])));
 
+  const selectedIds = entries.filter((_, idx) => checked[idx]).map(e => e.id);
+
   const handleConfirm = () => {
-    const selectedIds = entries.filter((_, idx) => checked[idx]).map(e => e.id);
     if (!selectedIds.length) { alert(t('print_select_empty_alert')); return; }
     confirmPrintSelection(selectedIds);
   };
 
-  const checkedCount = entries.filter((_, idx) => checked[idx]).length;
+  const handleSignAndPrint = async () => {
+    if (!order) return;
+    if (!selectedIds.length) { alert(t('print_select_empty_alert')); return; }
+    setSigning(true);
+    try {
+      await triggerSignAndPrint('order', order, { examIds: selectedIds });
+      cancelPrintSelection();
+    } catch (e) {
+      alert(t('sign_pdf_error', { message: getErrorMessage(e) }));
+    } finally {
+      setSigning(false);
+    }
+  };
+
+  const checkedCount = selectedIds.length;
 
   return (
     <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -107,12 +123,18 @@ export const PrintSelectionModal: React.FC = () => {
           ))}
         </div>
 
-        <div className="p-4 border-t border-slate-100 bg-slate-50/60 flex items-center gap-2">
-          <Button variant="outline" size="sm" className="flex-1" onClick={cancelPrintSelection}>
-            {t('cancel')}
-          </Button>
-          <Button size="sm" className="flex-1 bg-[#0F4C81] hover:bg-[#0a3a63]" onClick={handleConfirm}>
-            <Printer size={14} /> {t('print_select_confirm')}
+        <div className="p-4 border-t border-slate-100 bg-slate-50/60 space-y-2">
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="flex-1" onClick={cancelPrintSelection}>
+              {t('cancel')}
+            </Button>
+            <Button size="sm" className="flex-1 bg-[#0F4C81] hover:bg-[#0a3a63]" onClick={handleConfirm}>
+              <Printer size={14} /> {t('print_select_confirm')}
+            </Button>
+          </div>
+          <Button size="sm" disabled={signing} className="w-full bg-[#0F4C81] hover:bg-[#0a3a63] disabled:opacity-50" onClick={handleSignAndPrint}>
+            <FileSignature size={14} className={signing ? 'animate-pulse' : ''} />
+            {signing ? t('sign_print_loading') : t('save_sign_print')}
           </Button>
         </div>
       </div>

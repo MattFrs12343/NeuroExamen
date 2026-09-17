@@ -1,17 +1,24 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
-import type { MedicationLine } from '../types';
+import type { MedicationLine, Patient } from '../types';
 import {
   User, Search, Calendar, Check, ArrowLeft, X,
   Building2, PlusCircle, ClipboardList, CheckCircle2,
-  Pill, Trash2,
+  Pill, Trash2, FileSignature, Maximize2,
 } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Textarea } from '../components/ui/textarea';
-import { cn, getErrorMessage, hasIdentity } from '../lib/utils';
-import { findClinicProfile } from '../lib/clinic';
+import { RichTextField } from '../components/ui/rich-text-field';
+import { ExpandableRichField } from '../components/ExpandableRichField';
+import { RichText } from '../components/RichText';
+import { ClinicProfileField } from '../components/ClinicProfileField';
+import { EditPatientNameButton } from '../components/EditPatientNameButton';
+import { MedicationModal } from '../components/MedicationModal';
+import { cn, findPatientsByExactName, getErrorMessage, hasIdentity } from '../lib/utils';
+import { isRichTextEmpty, richTextToPlain } from '../lib/richText';
+import { findClinicProfile, normalizeClinicKey } from '../lib/clinic';
 
 const PanelCard = ({ children, className }: { children: React.ReactNode; className?: string }) => (
   <div className={cn('bg-white rounded-2xl border border-slate-200/80 shadow-premium', className)}>
@@ -49,19 +56,43 @@ const emptyLine = (): MedicationLine => ({
   text: '',
 });
 
+// Normaliza un nombre para compararlo tolerando suciedad heredada de datos
+// viejos (dos puntos iniciales, paréntesis sobrantes, dobles espacios, falta
+// de acentos, etc.). Solo se usa para MATCHEAR: los nombres se muestran y se
+// guardan tal cual. Reutiliza la misma normalización que el match de clínicas.
+const normName = (s?: string | null): string => normalizeClinicKey(s);
+
+// Limpia lo esencial (trim + espacios colapsados) cuando se GUARDA un
+// paciente nuevo, para no seguir generando nombres duplicados con basura.
+const cleanName = (s: string): string => s.trim().replace(/\s+/g, ' ');
+
 export const NewReceta: React.FC = () => {
   const { t } = useTranslation();
   const {
-    patients, clinicProfiles, addPatient, updatePatient,
+    patients, recetas, clinicProfiles, addPatient, updatePatient,
     setCurrentView, activeRecetaForEdit, setActiveRecetaForEdit,
-    triggerDirectPrintReceta, addReceta, updateReceta,
-    lastClinicName, setLastClinicName, setRecetaPrintCopies,
+    triggerDirectPrintReceta, triggerSignAndPrint, addReceta, updateReceta,
+    setLastClinicName, lastClinicName, setRecetaPrintCopies,
+    getLastKnownPatientPhone, getLastKnownPatientAddress,
   } = useApp();
+
+  // CPF del paciente como fallback: si el paciente no tiene `identityCard`
+  // cargado, se toma el de su receta más reciente que sí lo tenga — es el
+  // único módulo con un campo de CPF propio, así que no hace falta buscar
+  // cross-módulo (a diferencia de teléfono/dirección, que sí se comparten
+  // vía getLastKnownPatientPhone/Address en AppContext).
+  const lastKnownCpf = useCallback((patientId: string): string => {
+    const withCpf = recetas.filter(r => r.patientId === patientId && r.patientCpf);
+    if (!withCpf.length) return '';
+    return withCpf
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0]
+      .patientCpf || '';
+  }, [recetas]);
 
   const isEdit = !!activeRecetaForEdit;
 
   // ── Dados do Emitente ──────────────────────────────────────────────────
-  const [clinicName, setClinicName] = useState(lastClinicName); // Prefeitura
+  const [clinicName, setClinicName] = useState(lastClinicName); // global shared
 
   // ── Dados do Paciente ───────────────────────────────────────────────────
   const [patientId,      setPatientId]      = useState('');
@@ -70,11 +101,15 @@ export const NewReceta: React.FC = () => {
   const [recetaDate,     setRecetaDate]     = useState('');
   const [noDate,         setNoDate]         = useState(false);
   const [patientAddress, setPatientAddress] = useState(''); // Endereço
+  const [patientCpf, setPatientCpf] = useState(''); // CPF — texto libre
+  const [patientPhone, setPatientPhone] = useState(''); // Teléfono — texto libre
   const [printTwoCopies, setPrintTwoCopies] = useState(false); // Imprimir 2 vias
 
   // ── Prescrição ──────────────────────────────────────────────────────────
   const [observations,   setObservations]   = useState('');
   const [medications,    setMedications]    = useState<MedicationLine[]>([]);
+  const [selectedMedication, setSelectedMedication] = useState<{ id: string; text: string } | null>(null);
+  const [draftModalOpen, setDraftModalOpen] = useState(false);
   const [draft,          setDraft]          = useState<MedicationLine>(emptyLine());
 
   // Vademecum (autocompletado del campo "Medicamento") — se carga bajo
@@ -90,7 +125,7 @@ export const NewReceta: React.FC = () => {
   };
 
   const medSuggestions = useMemo(() => {
-    const q = draft.text.trim().toLowerCase();
+    const q = richTextToPlain(draft.text).trim().toLowerCase();
     if (q.length < 2 || !vademecum.length) return [];
     const starts: string[] = [];
     const contains: string[] = [];
@@ -105,13 +140,13 @@ export const NewReceta: React.FC = () => {
 
   const filteredPatients = useMemo(() => {
     if (!patQuery.trim()) return [];
-    const q = patQuery.toLowerCase();
-    return patients.filter(p => p.name.toLowerCase().includes(q) || (p.identityCard || '').includes(q));
+    const q = normName(patQuery);
+    return patients.filter(p => normName(p.name).includes(q) || normName(p.identityCard).includes(q));
   }, [patients, patQuery]);
 
-  // Solo las clínicas con perfil cargado son seleccionables en Recetas.
+  // Clínicas con perfil disponibles para el selector (Recetas + Atestados).
   const clinicOptions = useMemo(
-    () => clinicProfiles.filter(c => c.secretaria || c.sistema || c.address || c.phone || c.cnpj),
+    () => clinicProfiles,
     [clinicProfiles]
   );
 
@@ -132,19 +167,21 @@ export const NewReceta: React.FC = () => {
   const clinicPhone      = selectedClinicProfile?.phone      || '';
   const clinicCnpj       = selectedClinicProfile?.cnpj       || '';
 
-  // `lastClinicName` es compartido con Pedidos/Encaminhamentos (texto libre),
-  // así que puede traer un nombre que no existe en `receta_clinics`. Para una
-  // receta NUEVA, si no hay perfil que respalde ese nombre, lo descartamos para
-  // no guardar una clínica sin datos ni mostrar el preview vacío.
+  // La clínica pegajosa recordada podría haber sido eliminada del catálogo
+  // `receta_clinics` desde la última vez. Para una receta NUEVA, si no hay
+  // perfil que respalde ese nombre, lo descartamos (y olvidamos la memoria)
+  // para no guardar una clínica sin datos ni mostrar el preview vacío.
   // Ajuste hecho durante el render (no en un efecto): clinicName solo cambia
   // por acciones puntuales (seleccionar, prefill, limpiar), nunca tecla a
   // tecla, así que no hay riesgo de loop ni de pisar lo que el usuario escribe.
   if (!isEdit && clinicProfiles.length && clinicName && !selectedClinicProfile) {
     setClinicName('');
+    setLastClinicName('');
   }
 
   const handleSelectClinic = (name: string) => {
-    setClinicName(name); setLastClinicName(name);
+    setClinicName(name);
+    setLastClinicName(name); // global shared
   };
 
   // Prefill en modo edición
@@ -156,7 +193,9 @@ export const NewReceta: React.FC = () => {
       if (p) setPatQuery(p.name);
       setRecetaDate(activeRecetaForEdit.date || '');
       setNoDate(!activeRecetaForEdit.date);
-      setPatientAddress(activeRecetaForEdit.patientAddress || p?.address || '');
+      setPatientAddress(activeRecetaForEdit.patientAddress || p?.address || getLastKnownPatientAddress(activeRecetaForEdit.patientId));
+      setPatientCpf(activeRecetaForEdit.patientCpf || p?.identityCard || lastKnownCpf(activeRecetaForEdit.patientId));
+      setPatientPhone(activeRecetaForEdit.patientPhone || getLastKnownPatientPhone(activeRecetaForEdit.patientId));
 
       setClinicName(activeRecetaForEdit.clinicName || '');
 
@@ -168,7 +207,7 @@ export const NewReceta: React.FC = () => {
       setNoDate(false);
       setMedications([]);
     }
-  }, [activeRecetaForEdit, patients]);
+  }, [activeRecetaForEdit, patients, getLastKnownPatientAddress, lastKnownCpf, getLastKnownPatientPhone]);
 
   const handleToggleNoDate = (checked: boolean) => {
     setNoDate(checked);
@@ -185,10 +224,12 @@ export const NewReceta: React.FC = () => {
   const handleSelectPatient = (id: string, name: string) => {
     setPatientId(id); setPatQuery(name); setShowPatDrop(false);
     const p = patients.find(p => p.id === id);
-    setPatientAddress(p?.address || '');
+    setPatientAddress(p?.address || getLastKnownPatientAddress(id));
+    setPatientCpf(p?.identityCard || lastKnownCpf(id));
+    setPatientPhone(getLastKnownPatientPhone(id));
   };
 
-  const isDraftComplete = !!draft.text.trim();
+  const isDraftComplete = !isRichTextEmpty(draft.text);
 
   const handleAddLine = () => {
     if (!isDraftComplete) return;
@@ -197,28 +238,44 @@ export const NewReceta: React.FC = () => {
   };
 
   const handleRemoveLine = (id: string) => setMedications(prev => prev.filter(m => m.id !== id));
+  const handleUpdateLine = (id: string, text: string) => setMedications(prev => prev.map(m => m.id === id ? { ...m, text } : m));
 
-  const handleSave = async (print: boolean) => {
+  const [signing, setSigning] = useState(false);
+
+  const handleSave = async (action: 'save' | 'print' | 'sign-print') => {
     if (!patQuery.trim())     { alert(t('new_order_validation_pat'));  return; }
     if (!medications.length)  { alert(t('receta_validation_meds'));    return; }
 
     let fPid = patientId;
     let fPatient = selectedPatient;
     const trimmedAddress = patientAddress.trim();
+    const trimmedCpf = patientCpf.trim();
     if (!fPid) {
-      const exact = patients.find(p => p.name.toLowerCase() === patQuery.toLowerCase());
-      if (exact) { fPid = exact.id; fPatient = exact; }
+      const matches = findPatientsByExactName(patients, patQuery, normName);
+      if (matches.length > 1) { alert(t('patient_ambiguous_match')); return; }
+      if (matches.length === 1) { fPid = matches[0].id; fPatient = matches[0]; }
       else {
         try {
-          const created = await addPatient({ name: patQuery.trim(), address: trimmedAddress || undefined });
+          const created = await addPatient({ name: cleanName(patQuery), address: trimmedAddress || undefined, identityCard: trimmedCpf || undefined });
           fPid = created.id; fPatient = created;
         } catch (e) { alert(t('save_error_msg', { message: getErrorMessage(e) })); return; }
       }
     }
 
-    // Guarda la dirección en el paciente para precargarla en sus próximas recetas.
-    if (fPatient && trimmedAddress && trimmedAddress !== (fPatient.address || '')) {
-      try { await updatePatient({ ...fPatient, address: trimmedAddress }); } catch { /* no bloquea el guardado de la receta */ }
+    // Guarda dirección y CPF en el paciente para precargarlos en sus próximas
+    // recetas. Se envían en UNA sola llamada partiendo de los datos vigentes
+    // del paciente: dos llamadas con el mismo `fPatient` obsoleto pisaban
+    // mutuamente el campo recién guardado por la otra (la segunda enviaba
+    // address = null y borraba la dirección).
+    if (fPatient) {
+      const next: Patient = { ...fPatient };
+      const addressChanged = trimmedAddress && trimmedAddress !== (fPatient.address || '');
+      const cpfChanged = trimmedCpf && trimmedCpf !== (fPatient.identityCard || '');
+      if (addressChanged) next.address = trimmedAddress;
+      if (cpfChanged) next.identityCard = trimmedCpf;
+      if (addressChanged || cpfChanged) {
+        try { await updatePatient(next); } catch { /* no bloquea el guardado de la receta */ }
+      }
     }
 
     const payload = {
@@ -230,7 +287,9 @@ export const NewReceta: React.FC = () => {
       clinicPhone: clinicPhone.trim() || undefined,
       clinicCnpj: clinicCnpj.trim() || undefined,
       patientAddress: trimmedAddress || undefined,
-      observations: observations.trim() || undefined,
+      patientCpf: patientCpf.trim() || undefined,
+      patientPhone: patientPhone.trim() || undefined,
+      observations: isRichTextEmpty(observations) ? undefined : observations,
       medications,
     };
 
@@ -242,11 +301,26 @@ export const NewReceta: React.FC = () => {
       } else {
         saved = await addReceta(payload);
       }
-      if (print) {
+      if (action === 'print') {
         setRecetaPrintCopies(printTwoCopies ? 2 : 1);
         triggerDirectPrintReceta(saved);
+      } else if (action === 'sign-print') {
+        // Captura la plantilla real de impresión y la sube para firmar —
+        // ver triggerSignAndPrint() en AppContext.tsx. Respeta la misma
+        // preferencia de vías que "Imprimir" (antes se forzaba a 1 dentro
+        // de triggerSignAndPrint sin importar este checkbox).
+        setRecetaPrintCopies(printTwoCopies ? 2 : 1);
+        setSigning(true);
+        try {
+          await triggerSignAndPrint('receta', saved);
+        } catch (e) {
+          alert(t('sign_pdf_error', { message: getErrorMessage(e) }));
+        } finally {
+          setSigning(false);
+        }
+      } else {
+        alert(isEdit ? t('receta_success_edit') : t('receta_success'));
       }
-      else alert(isEdit ? t('receta_success_edit') : t('receta_success'));
       setCurrentView('recetas');
     } catch (e) { alert(t('save_error_msg', { message: getErrorMessage(e) })); }
   };
@@ -256,12 +330,15 @@ export const NewReceta: React.FC = () => {
   const handleClear = () => {
     setClinicName('');
     setPatientId(''); setPatQuery(''); setPatientAddress('');
+    setPatientCpf('');
+    setPatientPhone('');
     setNoDate(false);
     setObservations(''); setMedications([]); setDraft(emptyLine());
   };
 
   return (
-    <div className="space-y-5 animate-fade-in">
+    <>
+      <div className="space-y-5 animate-fade-in">
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3">
@@ -289,19 +366,11 @@ export const NewReceta: React.FC = () => {
             <div className="p-6 space-y-4">
               <div>
                 <FieldLabel optional optionalText={t("optional")}>{t('receta_emitter_prefeitura')}</FieldLabel>
-                <div className="relative">
-                  <Building2 size={16} strokeWidth={1.75} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 z-10 pointer-events-none" />
-                  <select
-                    value={clinicName}
-                    onChange={e => handleSelectClinic(e.target.value)}
-                    className="flex h-11 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0F4C81]/20 focus:border-[#0F4C81]/50 focus:bg-white cursor-pointer transition-all"
-                  >
-                    <option value="">{t('receta_clinic_select_placeholder')}</option>
-                    {clinicOptions.map(c => (
-                      <option key={c.name} value={c.name}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
+                <ClinicProfileField
+                  options={clinicOptions}
+                  value={clinicName}
+                  onValueChange={handleSelectClinic}
+                />
               </div>
 
               {clinicName && (
@@ -327,15 +396,27 @@ export const NewReceta: React.FC = () => {
                   <div className="relative">
                     <Search size={16} strokeWidth={1.75} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                     <Input
-                      className="pl-10 pr-8 h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50"
+                      className={`pl-10 pr-8 h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50 ${isEdit ? 'cursor-not-allowed text-slate-500' : ''}`}
                       placeholder={t('new_order_pat_search')}
                       value={patQuery}
-                      onChange={e => { setPatQuery(e.target.value); setPatientId(''); setShowPatDrop(true); }}
-                      onFocus={() => { if (patQuery.trim()) setShowPatDrop(true); }}
+                      readOnly={isEdit}
+                      onChange={e => {
+                        // No auto-vincula por nombre mientras se escribe/pega:
+                        // el nombre no es único (puede haber dos pacientes
+                        // distintos con el mismo nombre) y hacerlo en cada
+                        // tecla/pegado terminaba asociando —y luego
+                        // imprimiendo— datos de OTRO paciente sin que el Dr.
+                        // lo notara. La vinculación real solo pasa al elegir
+                        // una fila del desplegable (handleSelectPatient) o,
+                        // si el nombre tecleado es inequívoco, al guardar
+                        // (ver handleSave).
+                        setPatQuery(e.target.value); setPatientId(''); setShowPatDrop(true);
+                      }}
+                      onFocus={() => { if (!isEdit && patQuery.trim()) setShowPatDrop(true); }}
                       onBlur={() => setTimeout(() => setShowPatDrop(false), 150)}
                       autoComplete="off"
                     />
-                    {patQuery && (
+                    {patQuery && !isEdit && (
                       <button type="button"
                         onMouseDown={e => { e.preventDefault(); setPatQuery(''); setPatientId(''); setShowPatDrop(false); }}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -369,10 +450,13 @@ export const NewReceta: React.FC = () => {
                   )}
 
                   {patientId && selectedPatient && (
-                    <div className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
-                      <CheckCircle2 size={13} strokeWidth={2.5} />
-                      {selectedPatient.name}{hasIdentity(selectedPatient.identityCard) ? ` — DNI: ${selectedPatient.identityCard}` : ''}
-                    </div>
+                    <>
+                      <div className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
+                        <CheckCircle2 size={13} strokeWidth={2.5} />
+                        {selectedPatient.name}{hasIdentity(selectedPatient.identityCard) ? ` — DNI: ${selectedPatient.identityCard}` : ''}
+                      </div>
+                      <EditPatientNameButton patientId={patientId} onRenamed={setPatQuery} />
+                    </>
                   )}
                 </div>
 
@@ -395,6 +479,20 @@ export const NewReceta: React.FC = () => {
                 <Input className="h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50"
                   placeholder={t('receta_pat_address_placeholder')}
                   value={patientAddress} onChange={e => setPatientAddress(e.target.value)} />
+              </div>
+
+              <div>
+                <FieldLabel optional optionalText={t("optional")}>{t('receta_pat_cpf_label')}</FieldLabel>
+                <Input className="h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50"
+                  placeholder={t('receta_pat_cpf_placeholder')}
+                  value={patientCpf} onChange={e => setPatientCpf(e.target.value)} />
+              </div>
+
+              <div>
+                <FieldLabel optional optionalText={t("optional")}>{t('patient_phone_label')}</FieldLabel>
+                <Input type="tel" className="h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50"
+                  placeholder={t('patient_phone_placeholder')}
+                  value={patientPhone} onChange={e => setPatientPhone(e.target.value)} />
               </div>
 
               {/* ── Opciones de impresión ─────────────────────────────── */}
@@ -425,12 +523,22 @@ export const NewReceta: React.FC = () => {
               {medications.length > 0 && (
                 <div className="space-y-2">
                   {medications.map((m, idx) => (
-                    <div key={m.id} className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/60">
+                    <div
+                      key={m.id}
+                      className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/60 cursor-pointer hover:bg-slate-100 transition-colors"
+                      onClick={() => setSelectedMedication(m)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedMedication(m); } }}
+                    >
                       <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-[11px] font-bold shrink-0 mt-0.5">
                         {idx + 1}
                       </div>
-                      <p className="flex-1 min-w-0 text-xs text-slate-700 leading-snug whitespace-pre-wrap">{m.text}</p>
-                      <button type="button" onClick={() => handleRemoveLine(m.id)}
+                      <RichText
+                        html={m.text}
+                        className="flex-1 min-w-0 text-xs text-slate-700 leading-snug bg-white border border-slate-200 rounded-lg px-3 py-2 pointer-events-none"
+                      />
+                      <button type="button" onClick={e => { e.stopPropagation(); handleRemoveLine(m.id); }}
                         className="text-slate-300 hover:text-red-500 shrink-0 transition-colors mt-0.5" title={t('delete')}>
                         <Trash2 size={14} />
                       </button>
@@ -444,42 +552,28 @@ export const NewReceta: React.FC = () => {
                 <div className="relative">
                   <Label className="text-xs font-semibold text-slate-600">{t('receta_med_name_label')} *</Label>
                   <div className="relative">
-                    <Textarea
-                      rows={3}
-                      className="mt-1.5 pr-8 border-slate-200 bg-white focus:border-[#0F4C81]/50 resize-none"
-                      placeholder={t('receta_med_paragraph_placeholder')}
-                      value={draft.text}
-                      onChange={e => { setDraft(d => ({ ...d, text: e.target.value })); loadVademecum(); setShowMedDrop(true); }}
-                      onFocus={() => { loadVademecum(); if (draft.text.trim().length >= 2) setShowMedDrop(true); }}
-                      onBlur={() => setTimeout(() => setShowMedDrop(false), 150)}
-                    />
-                    {draft.text && (
+                    <div
+                      onClick={() => setDraftModalOpen(true)}
+                      className="mt-1.5 pr-8 border border-slate-200 rounded-lg bg-white px-3 py-2 cursor-pointer text-sm leading-snug"
+                      style={{ minHeight: '66px', color: '#1F2937' }}
+                    >
+                      {isRichTextEmpty(draft.text)
+                        ? <span className="text-slate-400">{t('receta_med_paragraph_placeholder')}</span>
+                        : <RichText html={draft.text} />}
+                    </div>
+                    {!isRichTextEmpty(draft.text) && (
                       <button type="button"
-                        onClick={() => { setDraft(d => ({ ...d, text: '' })); setShowMedDrop(false); }}
+                        onClick={e => { e.stopPropagation(); setDraft(d => ({ ...d, text: '' })); setShowMedDrop(false); }}
                         title={t('receta_med_clear_title')}
                         className="absolute right-2.5 top-4 text-slate-400 hover:text-slate-600">
                         <X size={14} />
                       </button>
                     )}
                   </div>
-                  {showMedDrop && medSuggestions.length > 0 && (
-                    <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-premium-lg z-50 overflow-hidden">
-                      <div className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 bg-slate-50">
-                        {t('receta_med_vademecum_label')} — {medSuggestions.length}
-                      </div>
-                      <ul className="max-h-52 overflow-y-auto py-1">
-                        {medSuggestions.map(name => (
-                          <li key={name}>
-                            <button type="button"
-                              onMouseDown={() => { setDraft(d => ({ ...d, text: name })); setShowMedDrop(false); }}
-                              className="w-full flex items-start px-4 py-2.5 hover:bg-slate-50 transition-colors text-left">
-                              <span className="text-xs text-slate-600 leading-snug">{name}</span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-400">
+                    <Maximize2 size={10} />
+                    {t('receta_med_expand_hint')}
+                  </p>
                 </div>
                 <button type="button" onClick={handleAddLine}
                   disabled={!isDraftComplete}
@@ -490,12 +584,12 @@ export const NewReceta: React.FC = () => {
 
               <div>
                 <FieldLabel optional optionalText={t("optional")}>{t('receta_obs_label')}</FieldLabel>
-                <Textarea
-                  rows={2}
-                  className="border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50 resize-none"
-                  placeholder={t('receta_obs_placeholder')}
+                <ExpandableRichField
                   value={observations}
-                  onChange={e => setObservations(e.target.value)}
+                  onChange={setObservations}
+                  placeholder={t('receta_obs_placeholder')}
+                  modalTitle={t('receta_obs_label')}
+                  style={{ minHeight: '58px' }}
                 />
               </div>
             </div>
@@ -504,7 +598,7 @@ export const NewReceta: React.FC = () => {
         </div>
 
         {/* ── Columna derecha — Resumen sticky ─────────────────────────── */}
-        <div className="lg:col-span-1 lg:sticky lg:top-20 space-y-4">
+        <div className="lg:col-span-1 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto space-y-4">
           <PanelCard>
             <PanelCardHead icon={ClipboardList} title={t('receta_sec_summary')} />
             <div className="p-5 space-y-4">
@@ -553,7 +647,7 @@ export const NewReceta: React.FC = () => {
                     {medications.map(m => (
                       <div key={m.id} className="flex items-start gap-2 group">
                         <div className="w-1.5 h-1.5 rounded-full bg-[#0F4C81] mt-1.5 shrink-0" />
-                        <p className="text-xs text-slate-700 leading-snug flex-1 line-clamp-2">{m.text}</p>
+                        <p className="text-xs text-slate-700 leading-snug flex-1 line-clamp-2">{richTextToPlain(m.text)}</p>
                         <button type="button" onClick={() => handleRemoveLine(m.id)}
                           className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0">
                           <X size={12} />
@@ -567,14 +661,19 @@ export const NewReceta: React.FC = () => {
           </PanelCard>
 
           <div className="space-y-2">
-            <button type="button" onClick={() => handleSave(false)}
+            <button type="button" onClick={() => handleSave('save')}
               className="flex items-center justify-center gap-2 w-full h-12 rounded-xl bg-[#0F4C81] hover:bg-[#0a3a63] text-white text-sm font-bold shadow-sm hover:shadow-md transition-all">
               <Check size={17} strokeWidth={2.5} />
               {t('save')}
             </button>
-            <button type="button" onClick={() => handleSave(true)}
+            <button type="button" onClick={() => handleSave('print')}
               className="flex items-center justify-center gap-2 w-full h-11 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-sm font-semibold transition-all">
               {t('save_and_print')}
+            </button>
+            <button type="button" onClick={() => handleSave('sign-print')} disabled={signing}
+              className="flex items-center justify-center gap-2 w-full h-11 rounded-xl bg-[#0F4C81] hover:bg-[#0a3a63] text-white text-sm font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-50">
+              <FileSignature size={16} className={signing ? 'animate-pulse' : ''} />
+              {signing ? t('sign_print_loading') : t('save_sign_print')}
             </button>
             <button type="button" onClick={handleClear}
               className="flex items-center justify-center w-full h-10 rounded-xl border border-slate-200 text-sm font-medium text-slate-500 hover:bg-slate-50 transition-colors">
@@ -585,8 +684,87 @@ export const NewReceta: React.FC = () => {
               {t('cancel')}
             </button>
           </div>
-        </div>
+</div>
       </div>
     </div>
+    {selectedMedication && (
+      <MedicationModal
+        open={true}
+        onClose={() => setSelectedMedication(null)}
+        medication={selectedMedication}
+        onSave={handleUpdateLine}
+        title={t('receta_med_modal_title')}
+      />
+    )}
+    {draftModalOpen && createPortal(
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div
+          className="absolute inset-0 bg-slate-900/25 backdrop-blur-sm animate-fade-in"
+          onClick={() => setDraftModalOpen(false)}
+        />
+        <div className="relative w-full max-w-2xl z-10 bg-white rounded-2xl shadow-premium-lg border border-slate-200/60 overflow-hidden animate-scale-in">
+          <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-100">
+                <Pill size={16} className="text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">{t('receta_med_modal_title')}</h3>
+                <p className="text-xs text-slate-400 mt-0.5">{t('receta_med_modal_subtitle')}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setDraftModalOpen(false)}
+              className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <div className="p-6">
+            <div className="relative">
+              <RichTextField
+                value={draft.text}
+                onChange={html => { setDraft(d => ({ ...d, text: html })); loadVademecum(); setShowMedDrop(true); }}
+                onBlur={() => setTimeout(() => setShowMedDrop(false), 150)}
+                placeholder={t('receta_med_paragraph_placeholder')}
+                autoFocus
+                className="border border-slate-200 rounded-xl bg-slate-50/50 focus-within:border-[#0F4C81] focus-within:bg-white transition-colors"
+                style={{ fontSize: '15px', lineHeight: 1.7, color: '#1F2937', padding: '14px 16px', minHeight: '40vh' }}
+              />
+              {showMedDrop && medSuggestions.length > 0 && (
+                <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-premium-lg z-50 overflow-hidden">
+                  <div className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 bg-slate-50">
+                    {t('receta_med_vademecum_label')} — {medSuggestions.length}
+                  </div>
+                  <ul className="max-h-52 overflow-y-auto py-1">
+                    {medSuggestions.map(name => (
+                      <li key={name}>
+                        <button type="button"
+                          onMouseDown={() => { setDraft(d => ({ ...d, text: name })); setShowMedDrop(false); }}
+                          className="w-full flex items-start px-4 py-2.5 hover:bg-slate-50 transition-colors text-left">
+                          <span className="text-xs text-slate-600 leading-snug">{name}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
+              <button type="button" onClick={handleAddLine} disabled={!isDraftComplete}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#0F4C81] hover:bg-[#0a3a63] disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors">
+                <PlusCircle size={14} /> {t('receta_med_add_btn')}
+              </button>
+              <button type="button" onClick={() => setDraftModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-slate-600 bg-slate-100 hover:bg-slate-200 text-sm font-medium transition-colors">
+                {t('med_modal_done')}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
+  </>
   );
-};
+ };

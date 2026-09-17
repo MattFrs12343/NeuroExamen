@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../middleware/cors.php';
 require_once __DIR__ . '/../../middleware/auth.php';
+require_once __DIR__ . '/../../lib/clinicKey.php';
 
 setCorsHeaders();
 header('Content-Type: application/json');
@@ -10,12 +11,15 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 // ------------------------------------------------------------------
 // POST /api/clinics  — agregar una nueva clínica al catálogo
+// (se guarda en la tabla única clinic_profiles; la identificación por
+// name_key evita duplicados por mayúsculas/minúsculas/acentos)
 // ------------------------------------------------------------------
 if ($method === 'POST') {
     requireAuth();
 
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
     $name = trim($body['name'] ?? '');
+    $name = function_exists('mb_strtoupper') ? mb_strtoupper($name, 'UTF-8') : strtoupper($name);
 
     if ($name === '') {
         http_response_code(400);
@@ -23,19 +27,20 @@ if ($method === 'POST') {
         exit;
     }
 
-    $pdo  = getDB();
-    $stmt = $pdo->prepare('SELECT id, name, active FROM clinics WHERE LOWER(name) = LOWER(?)');
-    $stmt->execute([$name]);
+    $pdo     = getDB();
+    $nameKey = clinic_key($name);
+    $stmt    = $pdo->prepare('SELECT id, name, active FROM clinic_profiles WHERE name_key = ?');
+    $stmt->execute([$nameKey]);
     $existing = $stmt->fetch();
 
     if ($existing) {
         // Reactivar si estaba desactivada, conservando el nombre almacenado
         if ((int)$existing['active'] === 0) {
-            $pdo->prepare('UPDATE clinics SET active = 1 WHERE id = ?')->execute([$existing['id']]);
+            $pdo->prepare('UPDATE clinic_profiles SET active = 1 WHERE id = ?')->execute([$existing['id']]);
         }
         $clinic = ['id' => (int)$existing['id'], 'name' => $existing['name'], 'exists' => true];
     } else {
-        $pdo->prepare('INSERT INTO clinics (name) VALUES (?)')->execute([$name]);
+        $pdo->prepare('INSERT INTO clinic_profiles (name, name_key) VALUES (?, ?)')->execute([$name, $nameKey]);
         $clinic = ['id' => (int)$pdo->lastInsertId(), 'name' => $name, 'exists' => false];
     }
 
@@ -45,7 +50,7 @@ if ($method === 'POST') {
 }
 
 // ------------------------------------------------------------------
-// GET /api/clinics  — listado del catálogo
+// GET /api/clinics  — listado del catálogo completo
 // ------------------------------------------------------------------
 if ($method !== 'GET') {
     http_response_code(405);
@@ -56,5 +61,5 @@ if ($method !== 'GET') {
 requireAuth();
 
 $pdo  = getDB();
-$stmt = $pdo->query('SELECT id, name FROM clinics WHERE active = 1 ORDER BY name ASC');
+$stmt = $pdo->query('SELECT id, name FROM clinic_profiles WHERE active = 1 ORDER BY name ASC');
 echo json_encode($stmt->fetchAll());

@@ -21,13 +21,29 @@ RewriteEngine On
 # ------------------------------------------------------------------
 <IfModule mod_headers.c>
     Header always set X-Content-Type-Options "nosniff"
-    Header always set X-Frame-Options "DENY"
+    # SAMEORIGIN (no DENY): la página de verificación (/verificar/...)
+    # necesita incrustarse a sí misma un <iframe> con el PDF que ella misma
+    # sirve, mismo origen. Se intentó condicionar esto solo a esa ruta con
+    # RewriteRule [E=...] y con SetEnvIf, pero mod_rewrite reprocesa TODO
+    # el .htaccess otra vez después de la reescritura interna a index.php,
+    # y para esa segunda pasada %{REQUEST_URI}/Request_URI ya cambió a
+    # "/index.php" — la condición nunca llegaba a coincidir, sin importar
+    # el mecanismo usado. Más simple y confiable: SAMEORIGIN para toda la
+    # API (sigue bloqueando cualquier otro origen, que es lo que de verdad
+    # importa contra clickjacking).
+    Header always set X-Frame-Options "SAMEORIGIN"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
     Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
     Header always set Cross-Origin-Opener-Policy "same-origin"
     Header always unset X-Powered-By
     # HSTS solo cuando la conexión ya es HTTPS
     Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" "expr=%{HTTPS} == 'on'"
+    # El CSP del frontend (public/.htaccess) manda frame-ancestors 'none' y
+    # se hereda hasta acá (los headers SÍ se heredan/mezclan correctamente
+    # entre .htaccess padre e hijo — a diferencia del problema de arriba,
+    # que era específico de mod_rewrite, no de esto) — se pisa acá con
+    # 'self' por la misma razón que X-Frame-Options.
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
 </IfModule>
 
 # ------------------------------------------------------------------

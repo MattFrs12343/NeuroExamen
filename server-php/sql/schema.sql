@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS orders (
   user_id           CHAR(36)     NOT NULL,
   date              DATE         NOT NULL,
   code_cid          VARCHAR(255) NOT NULL DEFAULT '',
+  patient_phone     VARCHAR(30)  NULL,
   clinic_name       VARCHAR(255) NULL,
   observations      TEXT         NULL,
   status            VARCHAR(30)  NOT NULL DEFAULT 'Pendiente',
@@ -112,7 +113,7 @@ INSERT IGNORE INTO clinics (name) VALUES
   ('CLINICA EU SOU LUZ'),
   ('CLINICA HUMANAR'),
   ('MED CENTER GUAIANASES'),
-  ('DOUTOR CLINICA E LABORATÓRIO');
+  ('+DOUTOR CLINICA E LABORATÓRIO');
 
 -- --------------------------------------------------------
 -- Tabla: receta_clinics  (clínicas con perfil completo — exclusivas de
@@ -154,7 +155,7 @@ INSERT INTO receta_clinics (name, secretaria, sistema, address, phone, cnpj) VAL
    'AVENIDA PAULO FERREIRA, 2578 - SÃO PAULO- SP - PIRITUBA - CEP 02916-000', '1148585536', NULL),
   ('CLINICA EU SOU LUZ', NULL, NULL,
    'PRAÇA NIPPON, 105 - JARDIM JAPÃO', '(11) 3164-3894', NULL),
-  ('DOUTOR CLINICA E LABORATÓRIO', NULL, NULL,
+  ('+DOUTOR CLINICA E LABORATÓRIO', NULL, NULL,
    'Av. Papa João Paulo I, 3086 - Jardim Pres. Dutra, Guarulhos/SP - CEP: 07174-000', '11 98958 0281 | 11 94772 5760', NULL)
 ON DUPLICATE KEY UPDATE
   secretaria = VALUES(secretaria),
@@ -204,6 +205,8 @@ CREATE TABLE IF NOT EXISTS recetas (
   via1             TINYINT(1)   NOT NULL DEFAULT 0,
   via2             TINYINT(1)   NOT NULL DEFAULT 0,
   patient_address  VARCHAR(255) NULL,
+  patient_cpf      VARCHAR(100) NULL,
+  patient_phone    VARCHAR(30)  NULL,
   ident_nome       VARCHAR(255) NULL,
   ident_doc        VARCHAR(100) NULL,
   ident_address    VARCHAR(255) NULL,
@@ -229,10 +232,11 @@ CREATE TABLE IF NOT EXISTS receta_counter (
 -- Tabla: specialist_catalog  (especialistas para Encaminhamentos)
 -- --------------------------------------------------------
 CREATE TABLE IF NOT EXISTS specialist_catalog (
-  id         VARCHAR(64)  NOT NULL PRIMARY KEY,
-  name       VARCHAR(255) NOT NULL,
-  created_by CHAR(36)     NULL,
-  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  id             VARCHAR(64)  NOT NULL PRIMARY KEY,
+  name           VARCHAR(255) NOT NULL,
+  clinic_profile VARCHAR(20)  NULL,
+  created_by     CHAR(36)     NULL,
+  created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_specialist_catalog_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -252,6 +256,7 @@ CREATE TABLE IF NOT EXISTS encaminhamentos (
   user_id      CHAR(36)     NOT NULL,
   date         DATE         NULL,
   patient_age  VARCHAR(20)  NULL,
+  patient_phone VARCHAR(30) NULL,
   hd           TEXT         NULL,
   motivo       TEXT         NULL,
   clinic_name  VARCHAR(255) NULL,
@@ -293,6 +298,7 @@ INSERT IGNORE INTO exams (id, category, name) VALUES
   ('fac-01',     'cat_face',    'exam_fac_01'),
   ('cog-01',     'cat_cog',     'exam_cog_01'),
   ('cog-02',     'cat_cog',     'exam_cog_02'),
+  ('cog-03',     'cat_cog',     'exam_cog_03'),
   ('din-01',     'cat_din',     'exam_din_01'),
   ('rm-01',      'cat_rm',      'exam_rm_01'),
   ('rm-02',      'cat_rm',      'exam_rm_02'),
@@ -305,4 +311,5 @@ INSERT IGNORE INTO exams (id, category, name) VALUES
   ('tc-01',      'cat_tc',      'exam_tc_01'),
   ('us-01',      'cat_us',      'exam_us_01'),
   ('est-01',     'cat_est',     'exam_est_01'),
-  ('est-02',     'cat_est',     'exam_est_02');
+  ('est-02',     'cat_est',     'exam_est_02'),
+  ('equ-01',     'cat_equ',     'exam_equ_01');

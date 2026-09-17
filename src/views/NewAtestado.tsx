@@ -5,12 +5,16 @@ import type { Atestado } from '../types';
 import {
   User, Search, Calendar, Check, ArrowLeft, X,
   ClipboardList, CheckCircle2,
-  FileCheck, Clock, Save, Building2,
+  FileCheck, Clock, Save, Building2, FileSignature,
 } from 'lucide-react';
 import { Input } from '../components/ui/input';
-import { cn, getErrorMessage, hasIdentity } from '../lib/utils';
+import { ClinicProfileField } from '../components/ClinicProfileField';
+import { EditPatientNameButton } from '../components/EditPatientNameButton';
+import { cn, findPatientsByExactName, getErrorMessage, hasIdentity } from '../lib/utils';
+import { toISOSafe, isoToBRDate, isoToBRDateTime } from '../lib/dates';
 import { DOCTOR_NAME, DOCTOR_CRM, DOCTOR_ADDRESS } from '../lib/doctor';
 import { findClinicProfile } from '../lib/clinic';
+import { printSignedPdf } from '../lib/signedPdf';
 
 interface CidEntry { codigo: string; descripcion: string; }
 
@@ -82,6 +86,7 @@ export const NewAtestado: React.FC = () => {
     setCurrentView, activeAtestadoForEdit, setActiveAtestadoForEdit,
     triggerDirectPrintAtestado, addAtestado, updateAtestado,
     clinicProfiles, lastClinicName, setLastClinicName,
+    getLastKnownPatientPhone, getLastKnownPatientAddress,
   } = useApp();
 
   const isEdit = !!activeAtestadoForEdit;
@@ -95,6 +100,7 @@ export const NewAtestado: React.FC = () => {
   const [patCpf,      setPatCpf]      = useState('');
   const [patBirth,    setPatBirth]    = useState('');
   const [patAddress,  setPatAddress]  = useState('');
+  const [patPhone,    setPatPhone]    = useState('');
   const [issuedAt,    setIssuedAt]    = useState('');
   const [cid,         setCid]         = useState('');
   const [careStart,   setCareStart]   = useState('');
@@ -129,9 +135,9 @@ export const NewAtestado: React.FC = () => {
     return patients.filter(p => p.name.toLowerCase().includes(q) || (p.identityCard || '').includes(q));
   }, [patients, patQuery]);
 
-  // Solo las clínicas con perfil cargado son seleccionables (igual que en Recetas).
+  // Clínicas con perfil disponibles para el selector (Recetas + Atestados).
   const clinicOptions = useMemo(
-    () => clinicProfiles.filter(c => c.secretaria || c.sistema || c.address || c.phone || c.cnpj),
+    () => clinicProfiles,
     [clinicProfiles]
   );
 
@@ -215,37 +221,44 @@ export const NewAtestado: React.FC = () => {
       const p = patients.find(p => p.id === activeAtestadoForEdit.patientId);
       if (p) setPatQuery(p.name);
       setPatCpf(activeAtestadoForEdit.patientIdentityCard || '');
-      setPatBirth(activeAtestadoForEdit.patientBirthDate || '');
-      setPatAddress(activeAtestadoForEdit.patientAddress || '');
+      setPatBirth(isoToBRDate(activeAtestadoForEdit.patientBirthDate));
+      setPatAddress(activeAtestadoForEdit.patientAddress || p?.address || getLastKnownPatientAddress(activeAtestadoForEdit.patientId));
+      setPatPhone(activeAtestadoForEdit.patientPhone || getLastKnownPatientPhone(activeAtestadoForEdit.patientId));
       setClinicName(activeAtestadoForEdit.clinicName || '');
-      setIssuedAt(activeAtestadoForEdit.issuedAt || '');
+      setIssuedAt(isoToBRDateTime(activeAtestadoForEdit.issuedAt));
       setCid(activeAtestadoForEdit.cid || '');
       setCareStart(activeAtestadoForEdit.careStartTime || '');
       setCareEnd(activeAtestadoForEdit.careEndTime || '');
-      setCareDate(activeAtestadoForEdit.careDate || '');
+      setCareDate(isoToBRDate(activeAtestadoForEdit.careDate));
       setRestDays(activeAtestadoForEdit.restDays || '');
       setObservation(activeAtestadoForEdit.observation || '');
     } else {
       const d = generateDefaults();
-      setPatientId(''); setPatQuery(''); setPatCpf(''); setPatBirth(''); setPatAddress('');
+      setPatientId(''); setPatQuery(''); setPatCpf(''); setPatBirth(''); setPatAddress(''); setPatPhone('');
       setIssuedAt(d.issuedAt); setCid(''); setCareStart(''); setCareEnd('');
       setCareDate(d.careDate); setRestDays(''); setObservation('');
     }
-  }, [activeAtestadoForEdit, patients]);
+  }, [activeAtestadoForEdit, patients, getLastKnownPatientAddress, getLastKnownPatientPhone]);
 
   const selectedPatient = patients.find(p => p.id === patientId);
 
   const handleSelectPatient = (id: string, name: string) => {
     setPatientId(id); setPatQuery(name); setShowPatDrop(false);
+    const p = patients.find(p => p.id === id);
+    setPatAddress(p?.address || getLastKnownPatientAddress(id));
+    setPatPhone(getLastKnownPatientPhone(id));
   };
 
-  const handleSave = async (print: boolean) => {
+  const [signing, setSigning] = useState(false);
+
+  const handleSave = async (action: 'save' | 'print' | 'sign-print') => {
     if (!patQuery.trim()) { alert(t('new_order_validation_pat')); return; }
 
     let fPid = patientId;
     if (!fPid) {
-      const exact = patients.find(p => p.name.toLowerCase() === patQuery.trim().toLowerCase());
-      if (exact) fPid = exact.id;
+      const matches = findPatientsByExactName(patients, patQuery);
+      if (matches.length > 1) { alert(t('patient_ambiguous_match')); return; }
+      if (matches.length === 1) fPid = matches[0].id;
       else {
         try {
           const created = await addPatient({
@@ -261,25 +274,26 @@ export const NewAtestado: React.FC = () => {
       patientId: fPid,
       patientName: patQuery.trim(),
       patientIdentityCard: patCpf.trim(),
-      patientBirthDate: patBirth.trim() || undefined,
+      patientBirthDate: toISOSafe(patBirth),
       patientAddress: patAddress.trim() || undefined,
+      patientPhone: patPhone.trim() || undefined,
       clinicName: clinicName.trim() || undefined,
       clinicSecretaria: clinicSecretaria.trim() || undefined,
       clinicSistema: clinicSistema.trim() || undefined,
       clinicAddress: clinicAddress.trim() || undefined,
       clinicPhone: clinicPhone.trim() || undefined,
       clinicCnpj: clinicCnpj.trim() || undefined,
-      issuedAt: issuedAt.trim() || undefined,
+      issuedAt: toISOSafe(issuedAt),
       cid: cid.trim() || undefined,
       careStartTime: careStart.trim() || undefined,
       careEndTime: careEnd.trim() || undefined,
-      careDate: careDate.trim() || undefined,
+      careDate: toISOSafe(careDate),
       restDays: restDays.trim() || undefined,
       observation: observation.trim() || undefined,
       doctorName: DOCTOR_NAME,
       doctorCrm: DOCTOR_CRM,
       doctorAddress: DOCTOR_ADDRESS,
-      signedAt: issuedAt.trim() || undefined,
+      signedAt: toISOSafe(issuedAt),
     };
 
     try {
@@ -290,8 +304,25 @@ export const NewAtestado: React.FC = () => {
       } else {
         saved = await addAtestado(payload);
       }
-      if (print) triggerDirectPrintAtestado(saved);
-      else alert(isEdit ? t('atestado_success_edit') : t('atestado_success'));
+
+      if (action === 'sign-print') {
+        // Directo al diálogo de impresión con el PDF YA firmado (QR y firma
+        // real incluidos) — nada de descargar el archivo primero. Ver
+        // printSignedPdf(): carga el PDF en un iframe oculto e imprime
+        // desde ahí, así nunca toca la carpeta de Descargas.
+        setSigning(true);
+        try {
+          await printSignedPdf('atestados', saved.id);
+        } catch (e) {
+          alert(t('sign_pdf_error', { message: getErrorMessage(e) }));
+        } finally {
+          setSigning(false);
+        }
+      } else if (action === 'print') {
+        triggerDirectPrintAtestado(saved);
+      } else {
+        alert(isEdit ? t('atestado_success_edit') : t('atestado_success'));
+      }
       setCurrentView('atestados');
     } catch (e) { alert(t('save_error_msg', { message: getErrorMessage(e) })); }
   };
@@ -299,7 +330,7 @@ export const NewAtestado: React.FC = () => {
   const handleCancel = () => { if (isEdit) setActiveAtestadoForEdit(null); setCurrentView('atestados'); };
 
   const handleClear = () => {
-    setPatientId(''); setPatQuery(''); setPatCpf(''); setPatBirth(''); setPatAddress('');
+    setPatientId(''); setPatQuery(''); setPatCpf(''); setPatBirth(''); setPatAddress(''); setPatPhone('');
     setClinicName('');
     setCid(''); setCareStart(''); setCareEnd(''); setRestDays(''); setObservation('');
   };
@@ -338,19 +369,11 @@ export const NewAtestado: React.FC = () => {
                 <label className="block text-xs font-semibold text-slate-700 mb-2">
                   {t('receta_emitter_prefeitura')} <span className="text-slate-400 font-normal">({t('optional')})</span>
                 </label>
-                <div className="relative">
-                  <Building2 size={16} strokeWidth={1.75} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 z-10 pointer-events-none" />
-                  <select
-                    value={clinicName}
-                    onChange={e => handleSelectClinic(e.target.value)}
-                    className="flex h-11 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0F4C81]/20 focus:border-[#0F4C81]/50 focus:bg-white cursor-pointer transition-all"
-                  >
-                    <option value="">{t('receta_clinic_select_placeholder')}</option>
-                    {clinicOptions.map(c => (
-                      <option key={c.name} value={c.name}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
+                <ClinicProfileField
+                  options={clinicOptions}
+                  value={clinicName}
+                  onValueChange={handleSelectClinic}
+                />
               </div>
 
               {clinicName && (
@@ -376,15 +399,16 @@ export const NewAtestado: React.FC = () => {
                   <div className="relative">
                     <Search size={16} strokeWidth={1.75} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                     <Input
-                      className={`pl-10 pr-8 ${fieldCls}`}
+                      className={`pl-10 pr-8 ${fieldCls} ${isEdit ? 'cursor-not-allowed text-slate-500' : ''}`}
                       placeholder={t('new_order_pat_search')}
                       value={patQuery}
+                      readOnly={isEdit}
                       onChange={e => { setPatQuery(e.target.value); setPatientId(''); setShowPatDrop(true); }}
-                      onFocus={() => { if (patQuery.trim()) setShowPatDrop(true); }}
+                      onFocus={() => { if (!isEdit && patQuery.trim()) setShowPatDrop(true); }}
                       onBlur={() => setTimeout(() => setShowPatDrop(false), 150)}
                       autoComplete="off"
                     />
-                    {patQuery && (
+                    {patQuery && !isEdit && (
                       <button type="button"
                         onMouseDown={e => { e.preventDefault(); setPatQuery(''); setPatientId(''); setShowPatDrop(false); }}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -415,10 +439,13 @@ export const NewAtestado: React.FC = () => {
                   )}
 
                   {patientId && selectedPatient && (
-                    <div className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
-                      <CheckCircle2 size={13} strokeWidth={2.5} />
-                      {selectedPatient.name}{hasIdentity(selectedPatient.identityCard) ? ` — CPF: ${selectedPatient.identityCard}` : ''}
-                    </div>
+                    <>
+                      <div className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
+                        <CheckCircle2 size={13} strokeWidth={2.5} />
+                        {selectedPatient.name}{hasIdentity(selectedPatient.identityCard) ? ` — CPF: ${selectedPatient.identityCard}` : ''}
+                      </div>
+                      <EditPatientNameButton patientId={patientId} onRenamed={setPatQuery} />
+                    </>
                   )}
                 </div>
 
@@ -463,6 +490,13 @@ export const NewAtestado: React.FC = () => {
                   {t('atestado_pat_address')} <span className="text-slate-400 font-normal">({t('optional')})</span>
                 </label>
                 <Input className={fieldCls} placeholder={t('receta_pat_address_placeholder')} value={patAddress} onChange={e => setPatAddress(e.target.value)} />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  {t('patient_phone_label')} <span className="text-slate-400 font-normal">({t('optional')})</span>
+                </label>
+                <Input type="tel" className={fieldCls} placeholder={t('patient_phone_placeholder')} value={patPhone} onChange={e => setPatPhone(e.target.value)} />
               </div>
             </div>
           </PanelCard>
@@ -539,7 +573,7 @@ export const NewAtestado: React.FC = () => {
         </div>
 
         {/* ── Columna derecha — Resumen sticky ─────────────────────────── */}
-        <div className="lg:col-span-1 lg:sticky lg:top-20 space-y-4">
+        <div className="lg:col-span-1 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto space-y-4">
           <PanelCard>
             <PanelCardHead icon={ClipboardList} title={t('receta_sec_summary')} />
             <div className="p-5 space-y-4">
@@ -595,15 +629,20 @@ export const NewAtestado: React.FC = () => {
           </PanelCard>
 
           <div className="space-y-2">
-            <button type="button" onClick={() => handleSave(false)}
+            <button type="button" onClick={() => handleSave('save')}
               className="flex items-center justify-center gap-2 w-full h-12 rounded-xl bg-[#0F4C81] hover:bg-[#0a3a63] text-white text-sm font-bold shadow-sm hover:shadow-md transition-all">
               <Check size={17} strokeWidth={2.5} />
               {t('save')}
             </button>
-            <button type="button" onClick={() => handleSave(true)}
+            <button type="button" onClick={() => handleSave('print')}
               className="flex items-center justify-center gap-2 w-full h-11 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-sm font-semibold transition-all">
               <Save size={16} />
               {t('save_and_print')}
+            </button>
+            <button type="button" onClick={() => handleSave('sign-print')} disabled={signing}
+              className="flex items-center justify-center gap-2 w-full h-11 rounded-xl bg-[#0F4C81] hover:bg-[#0a3a63] text-white text-sm font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-50">
+              <FileSignature size={16} className={signing ? 'animate-pulse' : ''} />
+              {signing ? t('sign_print_loading') : t('save_sign_print')}
             </button>
             <button type="button" onClick={handleClear}
               className="flex items-center justify-center w-full h-10 rounded-xl border border-slate-200 text-sm font-medium text-slate-500 hover:bg-slate-50 transition-colors">

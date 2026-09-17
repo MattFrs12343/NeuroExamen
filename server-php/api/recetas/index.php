@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../middleware/cors.php';
 require_once __DIR__ . '/../../middleware/auth.php';
+require_once __DIR__ . '/../../lib/signing.php';
 
 setCorsHeaders();
 header('Content-Type: application/json');
@@ -32,6 +33,8 @@ function formatReceta(array $row, array $medications): array {
         'via1'             => (bool)$row['via1'],
         'via2'             => (bool)$row['via2'],
         'patientAddress'   => $row['patient_address']   ?: null,
+        'patientCpf'       => $row['patient_cpf']       ?: null,
+        'patientPhone'     => $row['patient_phone']     ?: null,
         'identNome'        => $row['ident_nome']        ?: null,
         'identDoc'         => $row['ident_doc']         ?: null,
         'identAddress'     => $row['ident_address']     ?: null,
@@ -41,6 +44,9 @@ function formatReceta(array $row, array $medications): array {
         'observations'     => $row['observations']      ?: null,
         'medications'      => $medications,
         'createdBy'        => $row['user_name'],
+        'token'            => $row['token']          ?: null,
+        'accessCode'       => $row['access_code']    ?: null,
+        'validationUrl'    => $row['validation_url'] ?: null,
     ];
 }
 
@@ -111,6 +117,8 @@ if ($method === 'POST') {
     $via1              = !empty($body['via1']) ? 1 : 0;
     $via2              = !empty($body['via2']) ? 1 : 0;
     $patientAddress    = $body['patientAddress']    ?? null;
+    $patientCpf        = $body['patientCpf']        ?? null;
+    $patientPhone      = $body['patientPhone']      ?? null;
     $identNome         = $body['identNome']         ?? null;
     $identDoc          = $body['identDoc']          ?? null;
     $identAddress      = $body['identAddress']      ?? null;
@@ -138,16 +146,16 @@ if ($method === 'POST') {
                 id, patient_id, user_id, date,
                 clinic_name, clinic_secretaria, clinic_sistema, clinic_address, clinic_phone, clinic_cnpj,
                 via1, via2,
-                patient_address, ident_nome, ident_doc, ident_address,
+                patient_address, patient_cpf, patient_phone, ident_nome, ident_doc, ident_address,
                 patient_org_emissor, patient_city, patient_uf,
                 observations, medications
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $newId, $patientId, $userId, $date,
             $clinicName, $clinicSecretaria, $clinicSistema, $clinicAddress, $clinicPhone, $clinicCnpj,
             $via1, $via2,
-            $patientAddress, $identNome, $identDoc, $identAddress,
+            $patientAddress, $patientCpf, $patientPhone, $identNome, $identDoc, $identAddress,
             $patientOrgEmissor, $patientCity, $patientUf,
             $observations, json_encode($medications),
         ]);
@@ -159,6 +167,8 @@ if ($method === 'POST') {
         echo json_encode(['error' => 'Error al crear receta: ' . $e->getMessage()]);
         exit;
     }
+
+    generateVerificationInfo($pdo, 'recetas', 'recetas', $newId);
 
     $stmt = $pdo->prepare('
         SELECT r.*, p.name AS patient_name, p.identity_card AS patient_identity_card, u.name AS user_name
@@ -190,6 +200,8 @@ if ($method === 'PUT' && $recetaId) {
     $via1              = !empty($body['via1']) ? 1 : 0;
     $via2              = !empty($body['via2']) ? 1 : 0;
     $patientAddress    = $body['patientAddress']    ?? null;
+    $patientCpf        = $body['patientCpf']        ?? null;
+    $patientPhone      = $body['patientPhone']      ?? null;
     $identNome         = $body['identNome']         ?? null;
     $identDoc          = $body['identDoc']          ?? null;
     $identAddress      = $body['identAddress']      ?? null;
@@ -209,7 +221,7 @@ if ($method === 'PUT' && $recetaId) {
         'UPDATE recetas SET
             date=?, clinic_name=?, clinic_secretaria=?, clinic_sistema=?, clinic_address=?, clinic_phone=?, clinic_cnpj=?,
             via1=?, via2=?,
-            patient_address=?, ident_nome=?, ident_doc=?, ident_address=?,
+            patient_address=?, patient_cpf=?, patient_phone=?, ident_nome=?, ident_doc=?, ident_address=?,
             patient_org_emissor=?, patient_city=?, patient_uf=?,
             observations=?, medications=?
          WHERE id=?'
@@ -217,7 +229,7 @@ if ($method === 'PUT' && $recetaId) {
     $upd->execute([
         $date, $clinicName, $clinicSecretaria, $clinicSistema, $clinicAddress, $clinicPhone, $clinicCnpj,
         $via1, $via2,
-        $patientAddress, $identNome, $identDoc, $identAddress,
+        $patientAddress, $patientCpf, $patientPhone, $identNome, $identDoc, $identAddress,
         $patientOrgEmissor, $patientCity, $patientUf,
         $observations, json_encode($medications), $recetaId,
     ]);

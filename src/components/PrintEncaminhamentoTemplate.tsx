@@ -2,6 +2,8 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import { QrCodeSvg } from './QrCodeSvg';
+import { VerificationQrCard } from './VerificationQrCard';
+import { RichText } from './RichText';
 import { getEncProfile } from '../data/encaminhamentoProfiles';
 
 // ── Isotipo médico — cerebro en línea fina ─────────────────────────────────
@@ -32,10 +34,16 @@ const FieldLine: React.FC<{ label: string; value?: string; flex?: number; lineCo
 
 export const PrintEncaminhamentoTemplate: React.FC = () => {
   const { t } = useTranslation();
-  const { selectedEncaminhamentoForPrint, specialistsCatalog } = useApp();
+  const { selectedEncaminhamentoForPrint, specialistsCatalog, captureTarget, verificationQr, verificationToken } = useApp();
 
   if (!selectedEncaminhamentoForPrint) return null;
   const enc = selectedEncaminhamentoForPrint;
+
+  // Solo true durante la captura de firma (fuera de pantalla). En NeuroMóbius
+  // se usa para intercambiar el pie de contactos+QR decorativo por el pie de
+  // firma limpio (QR de verificación + texto legal), sin tocar en absoluto la
+  // vista/impresión normal del usuario — que sigue mostrando los contactos.
+  const isSigning = captureTarget === 'encaminhamento' && !!verificationQr && !!verificationToken;
 
   // Perfil de clínica → colores, logo, contactos y variante de encabezado.
   const p = getEncProfile(enc.templateId);
@@ -187,9 +195,7 @@ export const PrintEncaminhamentoTemplate: React.FC = () => {
           border: `1px solid ${LINE}`, borderRadius: '8px', backgroundColor: '#fff',
           minHeight: '170px', padding: '14px 16px', marginBottom: '30px',
         }}>
-          <p style={{ margin: 0, fontSize: '11.5px', color: BODY, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
-            {enc.motivo || ''}
-          </p>
+          <RichText tag="p" style={{ margin: 0, fontSize: '11.5px', color: BODY, lineHeight: 1.7, whiteSpace: 'pre-wrap' }} html={enc.motivo || ''} />
         </div>
 
         {/* ── 7. FECHA + FIRMA — anclados al pie con espacio amplio ───────── */}
@@ -213,7 +219,13 @@ export const PrintEncaminhamentoTemplate: React.FC = () => {
 
         {/* ── 8. FOOTER INSTITUCIONAL ─────────────────────────────────────── */}
         <div style={{ marginTop: '34px' }}>
-          {p.footerContacts && (
+          {/* Contactos + QR decorativo del WhatsApp: solo en la vista/impresión
+              normal. Durante la firma (isSigning) se ocultan para dejar libre
+              el pie — así el QR de verificación (derecha) y el texto legal
+              ICP-Brasil (izquierda, dibujado por el servidor) no se pisan con
+              ellos. NeuroIsbe ya tiene footerContacts:false, así que esto solo
+              afecta a NeuroMóbius. */}
+          {p.footerContacts && !isSigning && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingBottom: '18px' }}>
             {/* Contactos — izquierda */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -249,6 +261,16 @@ export const PrintEncaminhamentoTemplate: React.FC = () => {
               </p>
             </div>
           </div>
+          )}
+
+          {/* QR de verificação (só ao assinar) — ocupa el lugar del pie que
+              acaba de liberarse (contactos/QR decorativo ocultos por isSigning
+              en NeuroMóbius; NeuroIsbe nunca los tuvo). */}
+          {isSigning && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingBottom: '18px' }}>
+              <VerificationQrCard qrContent={verificationQr!} token={verificationToken!} size="compact"
+                dark={p.printQrDark} surface={SURFACE} surfaceBorder={SURFACE_BORDER} accent={PRIMARY} />
+            </div>
           )}
 
           {/* ── 9. ONDA DECORATIVA — degradado del perfil ─────────────────── */}
