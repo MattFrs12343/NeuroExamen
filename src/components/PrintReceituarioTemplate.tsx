@@ -2,13 +2,14 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import { VerificationQrCard } from './VerificationQrCard';
+import { DOCTOR_CRM } from '../lib/doctor';
 import { RichText } from './RichText';
 import cerebroLogo from '../assets/cerebro.png';
 
-// Degradado azul oscuro (derecha) → azul claro (izquierda) — solo en la onda
-// del pie de página (igual que Encaminhamentos); el resto de la hoja es
+// Degradado azul oscuro (derecha) â†’ azul claro (izquierda) â€” solo en la onda
+// del pie de pÃ¡gina (igual que Encaminhamentos); el resto de la hoja es
 // blanco. Mismos tonos que usa el resto de la app (#0F4C81 marca, #0A3A63
-// variante oscura de hover) más un tercer stop claro para el extremo
+// variante oscura de hover) mÃ¡s un tercer stop claro para el extremo
 // izquierdo.
 const DARK = '#0A3A63';
 const PRIMARY = '#0F4C81';
@@ -39,10 +40,10 @@ export const PrintReceituarioTemplate: React.FC = () => {
 
   return (
     <div className="print-area print-area-receituario" style={{ display: 'none', backgroundColor: '#fff' }}>
-      {/* Página A4 completa SIEMPRE (297mm, flex-column) — firmando o no: el
-          documento tiene que verse estático, como un membrete, con la onda
-          anclada al fondo real de la hoja sin importar cuánto texto haya.
-          Mismo patrón que ya usa PrintEncaminhamentoTemplate (que imprime
+      {/* PÃ¡gina A4 completa SIEMPRE (297mm, flex-column) â€” firmando o no: el
+          documento tiene que verse estÃ¡tico, como un membrete, con la onda
+          anclada al fondo real de la hoja sin importar cuÃ¡nto texto haya.
+          Mismo patrÃ³n que ya usa PrintEncaminhamentoTemplate (que imprime
           bien): el spacer flex:1 de abajo empuja el pie (QR + onda) al
           fondo, y el bloque de texto crece hacia abajo con su contenido. */}
       <div style={{
@@ -56,7 +57,7 @@ export const PrintReceituarioTemplate: React.FC = () => {
         flexDirection: 'column',
       }}>
 
-        {/* ── ENCABEZADO — logo + clínica ──────────────────────────────── */}
+        {/* â”€â”€ ENCABEZADO â€” logo + clÃ­nica â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <img src={cerebroLogo} alt="" style={{ width: '26px', height: '26px', objectFit: 'contain', flexShrink: 0 }} />
           <span style={{ fontSize: '15px', fontWeight: 800, color: DARK, lineHeight: 1.3 }}>
@@ -65,11 +66,11 @@ export const PrintReceituarioTemplate: React.FC = () => {
         </div>
         <div style={{ height: '3px', backgroundColor: PRIMARY, marginTop: '10px', marginBottom: '20px', borderRadius: '1px' }} />
 
-        {/* ── ÁREA DE ESCRITA — el recuadro CRECE para llenar toda la hoja
-            (flex:1), no importa cuánto texto haya: se ve siempre grande,
-            igual que en la versión firmada. Marca d'água do cerebro
-            centrada (posição absoluta) e dados da clínica ancorados no
-            canto inferior direito, ambos absolutos. ────────────────────── */}
+        {/* â”€â”€ ÃREA DE ESCRITA â€” el recuadro CRECE para llenar toda la hoja
+            (flex:1), no importa cuÃ¡nto texto haya: se ve siempre grande,
+            igual que en la versiÃ³n firmada. Marca d'Ã¡gua do cerebro
+            centrada (posiÃ§Ã£o absoluta) e dados da clÃ­nica ancorados no
+            canto inferior direito, ambos absolutos. â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div style={{
           flex: 1, border: `1px solid ${LINE}`, borderRadius: '10px',
           padding: '20px 24px 52px 24px',
@@ -82,9 +83,9 @@ export const PrintReceituarioTemplate: React.FC = () => {
             objectFit: 'contain', opacity: 0.07, pointerEvents: 'none',
           }} />
 
-          {/* Título decorado — dentro do quadro de escrita, com linhas
-              divisórias dos lados (equivalente prolijo do
-              "-----TÍTULO-----" pedido). */}
+          {/* TÃ­tulo decorado â€” dentro do quadro de escrita, com linhas
+              divisÃ³rias dos lados (equivalente prolijo do
+              "-----TÃTULO-----" pedido). */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', position: 'relative' }}>
             <div style={{ flex: 1, height: '1px', backgroundColor: LINE }} />
             <span style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '0.05em', color: PRIMARY, whiteSpace: 'pre' }}>
@@ -93,14 +94,14 @@ export const PrintReceituarioTemplate: React.FC = () => {
             <div style={{ flex: 1, height: '1px', backgroundColor: LINE }} />
           </div>
 
-          {/* Paciente (esq.) + Data da Consulta (dir.) — abaixo do título. */}
+          {/* Paciente (esq.) + Data da Consulta (dir.) â€” abaixo do tÃ­tulo. */}
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', marginBottom: '18px', position: 'relative' }}>
             <div style={{ flex: 1 }}>
               <p style={{ margin: '0 0 3px 0', fontSize: '10px', fontWeight: 700, color: SECONDARY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 {t('receituario_patient_name_label')}
               </p>
               <p style={{ margin: 0, fontSize: '13.5px', fontWeight: 700, color: BODY, borderBottom: `1px solid ${LINE}`, paddingBottom: '4px' }}>
-                {doc.patientName || ' '}
+                {doc.patientName || ' '}
               </p>
             </div>
             <div style={{ minWidth: '150px', textAlign: 'right' }}>
@@ -108,7 +109,7 @@ export const PrintReceituarioTemplate: React.FC = () => {
                 {t('receituario_consult_date_label')}
               </p>
               <p style={{ margin: 0, fontSize: '13.5px', fontWeight: 700, color: BODY, borderBottom: `1px solid ${LINE}`, paddingBottom: '4px' }}>
-                {formattedDate || ' '}
+                {formattedDate || ' '}
               </p>
             </div>
           </div>
@@ -125,20 +126,23 @@ export const PrintReceituarioTemplate: React.FC = () => {
               {doc.clinicAddress && <p style={{ margin: '0 0 2px 0', fontSize: '9px', color: SECONDARY, whiteSpace: 'pre-line' }}>{doc.clinicAddress}</p>}
               {doc.clinicPhone && <p style={{ margin: '0 0 2px 0', fontSize: '9px', color: SECONDARY }}><strong>{t('receta_clinic_phone_label')}:</strong> {doc.clinicPhone}</p>}
               {doc.clinicCnpj && <p style={{ margin: 0, fontSize: '9px', color: SECONDARY }}><strong>CNPJ:</strong> {doc.clinicCnpj}</p>}
+              {!isSigning && (
+                <p style={{ margin: '4px 0 0 0', fontSize: '9px', fontWeight: 700, color: BODY }}>{DOCTOR_CRM}</p>
+              )}
             </div>
           )}
         </div>
 
-        {/* ── QR de verificação — FORA do recuadro, canto inferior esquerdo,
-            entre a caixa de texto e a onda. Só aparece ao assinar. */}
+        {/* â”€â”€ QR de verificaÃ§Ã£o â€” FORA do recuadro, canto inferior esquerdo,
+            entre a caixa de texto e a onda. SÃ³ aparece ao assinar. */}
         <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '40px' }}>
           {isSigning && (
-            <VerificationQrCard qrContent={verificationQr!} token={verificationToken!} size="mini" />
+            <VerificationQrCard qrContent={verificationQr!} token={verificationToken!} accessCode={doc?.accessCode} size="mini" />
           )}
         </div>
 
-        {/* ── ONDA DECORATIVA — más alta (80px) y con bleed a todo el ancho real
-            de la hoja (cancela el padding lateral de 18mm del contenedor). ── */}
+        {/* â”€â”€ ONDA DECORATIVA â€” mÃ¡s alta (80px) y con bleed a todo el ancho real
+            de la hoja (cancela el padding lateral de 18mm del contenedor). â”€â”€ */}
         <div style={{ margin: '0 -18mm' }}>
           <svg viewBox="0 0 500 44" preserveAspectRatio="none" style={{ display: 'block', width: '100%', height: '80px' }}>
             <defs>

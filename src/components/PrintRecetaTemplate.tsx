@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import { findClinicProfile } from '../lib/clinic';
+import { DOCTOR_CRM } from '../lib/doctor';
 import cerebroLogo from '../assets/cerebro.png';
 import { VerificationQrCard } from './VerificationQrCard';
 import { RichText } from './RichText';
@@ -32,9 +33,9 @@ export const PrintRecetaTemplate: React.FC = () => {
   const { t } = useTranslation();
   const { selectedRecetaForPrint, recetaPrintCopies, clinicProfiles, captureTarget, verificationQr, verificationToken } = useApp();
 
-  // Fallback al perfil actual de la clínica: si la receta se guardó con un
-  // nombre que no tenía perfil (o antes de que existiera), recuperamos en la
-  // impresión la secretaría/sistema/dirección/teléfono/CNPJ cuando haya match.
+  // Fallback al perfil actual de la clÃ­nica: si la receta se guardÃ³ con un
+  // nombre que no tenÃ­a perfil (o antes de que existiera), recuperamos en la
+  // impresiÃ³n la secretarÃ­a/sistema/direcciÃ³n/telÃ©fono/CNPJ cuando haya match.
   // Debe llamarse siempre (antes de cualquier return) para no violar las
   // Rules of Hooks — un useMemo condicional causaba "Rendered more hooks
   // than during the previous render" y tumbaba toda la app al imprimir.
@@ -70,29 +71,29 @@ export const PrintRecetaTemplate: React.FC = () => {
         color: BLACK,
         padding: '16mm 18mm',
         boxSizing: 'border-box',
-        // breakAfter (estándar) + pageBreakAfter (legacy): el motor de
-        // impresión de Chrome (window.print()) ignora break-after en
+        // breakAfter (estÃ¡ndar) + pageBreakAfter (legacy): el motor de
+        // impresiÃ³n de Chrome (window.print()) ignora break-after en
         // ciertos casos cuando el elemento es display:flex — pageBreakAfter
         // es la propiedad que realmente respeta al paginar, se agrega como
         // refuerzo sin sacar breakAfter (pantalla/otros navegadores).
         breakAfter: pageIdx < recetaPrintCopies - 1 ? 'page' : 'auto',
         pageBreakAfter: pageIdx < recetaPrintCopies - 1 ? 'always' : 'auto',
         // display:flex + el spacer de abajo (antes del bloque QR/firma) solo
-        // importan durante la captura de firma: ahí body.capturing-receta
+        // importan durante la captura de firma: ahÃ­ body.capturing-receta
         // fuerza min-height:297mm (ver index.css) y el spacer empuja el
-        // bloque QR/firma siempre al fondo real de la hoja — así el texto
-        // legal ICP-Brasil que agrega el servidor después (a una distancia
+        // bloque QR/firma siempre al fondo real de la hoja — asÃ­ el texto
+        // legal ICP-Brasil que agrega el servidor despuÃ©s (a una distancia
         // FIJA del borde inferior) cae siempre en el mismo lugar, sin
         // importar si la receta tiene pocos o muchos medicamentos. En
-        // impresión normal (sin min-height forzado) el spacer no hace nada,
-        // el diseño se ve exactamente igual que siempre.
+        // impresiÃ³n normal (sin min-height forzado) el spacer no hace nada,
+        // el diseÃ±o se ve exactamente igual que siempre.
         display: 'flex',
         flexDirection: 'column',
       }}>
 
         {/* LOGO + TITLE */}
         <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-          <img src={cerebroLogo} alt="NeuroExámenes" style={{ width: '56px', height: '56px', objectFit: 'contain', display: 'inline-block' }} />
+          <img src={cerebroLogo} alt="NeuroExÃ¡menes" style={{ width: '56px', height: '56px', objectFit: 'contain', display: 'inline-block' }} />
         </div>
         <div style={{ textAlign: 'center', marginBottom: '6px' }}>
           <span style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: BLUE }}>
@@ -147,7 +148,7 @@ export const PrintRecetaTemplate: React.FC = () => {
           </div>
         </div>
 
-        {/* PRESCRIÇÃO */}
+        {/* PRESCRIÃ‡ÃƒO */}
         <div style={{ marginBottom: '14px' }}>
           <p style={{ margin: '0 0 8px 0', fontSize: '9px', fontWeight: 700, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             {t('print_receta_med_table_med')}
@@ -174,13 +175,13 @@ export const PrintRecetaTemplate: React.FC = () => {
           </div>
         )}
 
-        {/* IDENTIFICACIÓN PACIENTE + PROVEEDOR */}
+        {/* IDENTIFICACIÃ“N PACIENTE + PROVEEDOR */}
         <div style={{ display: 'flex', gap: '14px', marginBottom: '18px' }}>
           <div style={{ flex: 1, border: '1px solid #D1D5DB', borderRadius: '6px', padding: '12px 14px' }}>
             <p style={{ margin: '0 0 10px 0', fontSize: '9px', fontWeight: 700, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               {t('print_receta_patient_block')}
             </p>
-            {/* Se completa a mano al momento de la dispensación — el documento (CPF) sí se precarga desde el formulario. */}
+            {/* Se completa a mano al momento de la dispensaciÃ³n — el documento (CPF) sÃ­ se precarga desde el formulario. */}
             <Field label={t('print_pat_info')} value={receta.patientName.toUpperCase()} />
             <Field label={t('print_receta_ident')} value={receta.patientCpf} />
             <Field label={t('print_receta_org_emissor')} />
@@ -204,24 +205,24 @@ export const PrintRecetaTemplate: React.FC = () => {
         </div>
 
         {/* Empuja el bloque QR/firma al fondo real de la hoja cuando la
-            página está forzada a 297mm (solo durante la captura de firma —
-            ver comentario en el div de la página, arriba). En impresión
+            pÃ¡gina estÃ¡ forzada a 297mm (solo durante la captura de firma —
+            ver comentario en el div de la pÃ¡gina, arriba). En impresiÃ³n
             normal se colapsa a 0 y no afecta nada. */}
         <div style={{ flex: 1 }} />
 
-        {/* QR de verificação (só ao assinar) + FIRMA MÉDICO — al firmar, la
-            línea en blanco "Assinatura e Carimbo do Médico" se saca del
-            todo: el servidor dibuja ahí mismo (abajo a la derecha, caja
+        {/* QR de verificaÃ§Ã£o (sÃ³ ao assinar) + FIRMA MÃ‰DICO — al firmar, la
+            lÃ­nea en blanco "Assinatura e Carimbo do MÃ©dico" se saca del
+            todo: el servidor dibuja ahÃ­ mismo (abajo a la derecha, caja
             angosta) el texto legal ICP-Brasil real (firmante, CNPJ/CPF,
             fecha/hora — drawSignatureFooter en lib/signing.php, con
-            footerBoxAlign:'right' para esta sección). En impresión normal
-            (sin firmar) la línea en blanco se mantiene igual que siempre. */}
+            footerBoxAlign:'right' para esta secciÃ³n). En impresiÃ³n normal
+            (sin firmar) la lÃ­nea en blanco se mantiene igual que siempre. */}
         {(() => {
           const isSigning = captureTarget === 'receta' && !!verificationQr && !!verificationToken;
           return (
             <div style={{ display: 'flex', justifyContent: isSigning ? 'flex-start' : 'flex-end', alignItems: 'flex-end', marginTop: '32px' }}>
               {isSigning ? (
-                <VerificationQrCard qrContent={verificationQr!} token={verificationToken!} size="compact" />
+                <VerificationQrCard qrContent={verificationQr!} token={verificationToken!} accessCode={receta?.accessCode} size="compact" />
               ) : (
                 <div style={{ textAlign: 'center', minWidth: '260px' }}>
                   <div style={{ height: '56px' }} />
@@ -229,6 +230,7 @@ export const PrintRecetaTemplate: React.FC = () => {
                   <p style={{ margin: 0, fontSize: '10px', fontWeight: 700, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     {t('print_sign_label')}
                   </p>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '10px', fontWeight: 700, color: GRAY }}>{DOCTOR_CRM}</p>
                 </div>
               )}
             </div>

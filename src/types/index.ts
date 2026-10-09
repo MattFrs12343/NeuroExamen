@@ -339,8 +339,20 @@ export interface FormulaLeite {
   avaliador?: string;
 }
 
-/** Resultado de la "Conclusão Pericial" del laudo. */
-export type LaudoConclusao = 'apto' | 'inapto_temporario' | 'inapto_definitivo';
+/**
+ * Una opción del catálogo de "Conclusão Pericial" del laudo. El catálogo es
+ * administrable (el médico agrega/edita/elimina textos) y vive en
+ * `laudo_conclusoes` — ver server-php/sql/migration_laudo_conclusoes.sql.
+ * Las 3 opciones originales (`apto`, `inapto_temporario`, `inapto_definitivo`)
+ * vienen sembradas por la migración con sus textos de siempre.
+ */
+export interface LaudoConclusaoOption {
+  id: string;
+  label: string;
+}
+
+/** Laudo ya guardado: el ID de la opción elegida, o '' si no eligió ninguna. */
+export type LaudoConclusao = string;
 
 /**
  * Laudo Pericial Médico — sección "Laudos": el médico elige la clínica (cada
@@ -371,8 +383,16 @@ export interface Laudo {
   cids?: string;
   /** Resumen de diagnóstico adicional (se autocompleta con los CIDs si está vacío). */
   diagnostico?: string;
-  /** Opción elegida de la Conclusão Pericial. */
+  /** ID de la opción elegida de la Conclusão Pericial (ver catálogo LaudoConclusaoOption). */
   conclusao?: LaudoConclusao;
+  /**
+   * Snapshot de TODAS las opciones de Conclusión Pericial tal como estaban
+   * cuando se firmó el laudo. Sin esto, editar o borrar una opción cambiaría
+   * el texto de un PDF ya emitido — y ese PDF es un documento legal que la
+   * verificación pública descarga. La API lo devuelve siempre (para laudos
+   * antiguos, las 3 opciones originales).
+   */
+  conclusaoOpcoes?: LaudoConclusaoOption[];
   /** Período sugerido de afastamento en días (ej: 190). */
   afastamentoDias?: number;
   observacoes?: string;

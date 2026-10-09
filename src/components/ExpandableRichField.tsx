@@ -95,7 +95,7 @@ export const ExpandableRichField: React.FC<ExpandableRichFieldProps> = ({
           title={expandLabel}
           aria-label={expandLabel}
           onClick={e => { e.stopPropagation(); openModal(); }}
-          className="absolute right-2 bottom-2 p-1.5 rounded-lg text-slate-400 hover:text-[#0F4C81] hover:bg-slate-100 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+          className="absolute right-2 bottom-2 p-1.5 rounded-lg text-slate-400 bg-white/80 hover:text-[#0F4C81] hover:bg-slate-100 transition-colors"
         >
           <Maximize2 size={14} />
         </button>
@@ -107,9 +107,14 @@ export const ExpandableRichField: React.FC<ExpandableRichFieldProps> = ({
             className="absolute inset-0 bg-slate-900/25 backdrop-blur-sm animate-fade-in"
             onClick={closeModal}
           />
-          <div className="relative w-full max-w-2xl z-10 bg-white rounded-2xl shadow-premium-lg border border-slate-200/60 overflow-hidden animate-scale-in">
+          {/* Modal acotado a 90vh (columna flex) con el editor haciendo scroll
+              POR DENTRO (max-height + overflow-y:auto): sin esto, un texto
+              largo hacía crecer el modal más allá de la ventana y —como el
+              overlay es items-center y el body va con overflow:hidden— el
+              contenido sobrante quedaba inalcanzable. */}
+          <div className="relative w-full max-w-2xl z-10 bg-white rounded-2xl shadow-premium-lg border border-slate-200/60 overflow-hidden animate-scale-in flex flex-col max-h-[90vh]">
             {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
               <div>
                 <h3 className="text-base font-bold text-slate-900">{modalTitle || placeholder}</h3>
                 {modalSubtitle && <p className="text-xs text-slate-400 mt-0.5">{modalSubtitle}</p>}
@@ -125,14 +130,22 @@ export const ExpandableRichField: React.FC<ExpandableRichFieldProps> = ({
             </div>
 
             {/* Modal body */}
-            <div className="p-6">
+            <div className="p-6 flex-1 min-h-0 overflow-y-auto">
               <RichTextField
                 value={value}
                 onChange={onChange}
                 placeholder={placeholder}
                 autoFocus
                 className="border border-slate-200 rounded-xl bg-slate-50/50 focus-within:border-[#0F4C81] focus-within:bg-white transition-colors overflow-hidden"
-                style={{ fontSize: '15px', lineHeight: 1.7, color: '#1F2937', padding: '14px 16px', minHeight: '45vh' }}
+                style={{
+                  fontSize: '15px',
+                  lineHeight: 1.7,
+                  color: '#1F2937',
+                  padding: '14px 16px',
+                  minHeight: '45vh',
+                  maxHeight: 'calc(90vh - 170px)',
+                  overflowY: 'auto',
+                }}
               />
             </div>
           </div>

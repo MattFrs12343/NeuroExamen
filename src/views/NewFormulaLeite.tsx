@@ -266,7 +266,14 @@ export const NewFormulaLeite: React.FC = () => {
     } else {
       resetForm();
     }
-  }, [activeFormulaLeiteForEdit, resetForm, getLastKnownPatientPhone]);
+    // resetForm NO va en las deps: depende de lastClinicName (para precargar
+    // institutionName), y ClinicField dispara setLastClinicName en cada
+    // tecla — si resetForm estuviera acá, cada letra escrita en "Instituição"
+    // volvía a disparar este efecto y en modo creación borraba todo el
+    // formulario ya cargado (paciente, CID, síntomas, exames, peso...).
+    // Mismo bug class ya corregido en NewEncaminhamento.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFormulaLeiteForEdit, getLastKnownPatientPhone]);
 
   const selectedPatient = patients.find(p => p.id === patientId);
 

@@ -106,10 +106,10 @@ function groupByCategory(array $items, array $order): array {
  * compartilhada com as outras 4 seções) porque o espaço ao lado de F é bem
  * mais estreito que a coluna de PACIENTE das outras fichas.
  */
-function drawCompactQrBox(TCPDF $pdf, float $x, float $y, float $w, string $verifyUrl, string $token): float {
+function drawCompactQrBox(TCPDF $pdf, float $x, float $y, float $w, string $verifyUrl, string $token, ?string $accessCode = null): float {
     $pad    = 2;
     $innerW = $w - 2 * $pad;
-    $cardH  = 30;
+    $cardH  = 35;
 
     $pdf->SetFillColor(247, 250, 252);
     $pdf->SetDrawColor(203, 213, 225);
@@ -127,7 +127,15 @@ function drawCompactQrBox(TCPDF $pdf, float $x, float $y, float $w, string $veri
     $curY += $qrSize + 1.5;
 
     $pdf->SetFont('freesans', 'B', 5.5);
+    $pdf->SetTextColor(15, 76, 129);
     $pdf->MultiCell($innerW, 0, 'Código: ' . $token, 0, 'C', false, 1, $x + $pad, $curY);
+    $curY = $pdf->GetY() + 1;
+
+    if ($accessCode !== null && trim($accessCode) !== '') {
+        $pdf->SetFont('freesans', 'B', 5.5);
+        $pdf->SetTextColor(15, 76, 129);
+        $pdf->MultiCell($innerW, 0, 'Código de acesso: ' . $accessCode, 0, 'C', false, 1, $x + $pad, $curY);
+    }
 
     $pdf->SetFont('freesans', '', 9);
     $pdf->SetTextColor(0, 0, 0);
@@ -368,7 +376,7 @@ $pdf->writeHTML($htmlF, true, false, true, false, '');
 $yAfterF = $pdf->GetY();
 $pdf->SetRightMargin($rightMargin);
 
-$yAfterQr = drawCompactQrBox($pdf, $qrColX, $yF, $qrColW, $f['qr_content'], $f['token']);
+$yAfterQr = drawCompactQrBox($pdf, $qrColX, $yF, $qrColW, $f['qr_content'], $f['token'], $f['access_code'] ?? null);
 
 // Rodapé (identificação do médico) + Avaliador, lado a lado — mesmo bloco
 // de baixo da página, um do lado do outro. Âncora FIXA perto do fim real da

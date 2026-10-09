@@ -1,0 +1,678 @@
+{
+ "long-p1-screen.png": {
+  "dpi": 96,
+  "mmPerPx": 0.2645,
+  "heightMm": 297.02,
+  "inkInHeader0to10": [],
+  "inkNearContentTop11to18": [],
+  "bandsCount": 29,
+  "topBandMm": [
+   21.42,
+   34.12
+  ],
+  "bottomBandMm": [
+   266.07,
+   269.24
+  ]
+ },
+ "long-p2-screen.png": {
+  "dpi": 96,
+  "mmPerPx": 0.2645,
+  "heightMm": 297.28,
+  "inkInHeader0to10": [
+   [
+    8.73,
+    11.37
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    14.81,
+    14.81
+   ]
+  ],
+  "bandsCount": 35,
+  "topBandMm": [
+   8.73,
+   11.37
+  ],
+  "bottomBandMm": [
+   262.37,
+   264.75
+  ]
+ },
+ "long-p3-screen.png": {
+  "dpi": 96,
+  "mmPerPx": 0.2645,
+  "heightMm": 297.02,
+  "inkInHeader0to10": [
+   [
+    8.46,
+    11.11
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    14.81,
+    14.81
+   ]
+  ],
+  "bandsCount": 23,
+  "topBandMm": [
+   8.46,
+   11.11
+  ],
+  "bottomBandMm": [
+   273.21,
+   275.33
+  ]
+ },
+ "mid-p1-screen.png": {
+  "dpi": 96,
+  "mmPerPx": 0.2645,
+  "heightMm": 297.02,
+  "inkInHeader0to10": [],
+  "inkNearContentTop11to18": [],
+  "bandsCount": 14,
+  "topBandMm": [
+   21.42,
+   34.12
+  ],
+  "bottomBandMm": [
+   171.39,
+   181.17
+  ]
+ },
+ "mid-p2-screen.png": {
+  "dpi": 96,
+  "mmPerPx": 0.2645,
+  "heightMm": 297.28,
+  "inkInHeader0to10": [
+   [
+    8.73,
+    11.37
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    14.81,
+    14.81
+   ]
+  ],
+  "bandsCount": 33,
+  "topBandMm": [
+   8.73,
+   11.37
+  ],
+  "bottomBandMm": [
+   241.74,
+   244.91
+  ]
+ },
+ "mid-p3-screen.png": {
+  "dpi": 96,
+  "mmPerPx": 0.2645,
+  "heightMm": 297.02,
+  "inkInHeader0to10": [
+   [
+    8.46,
+    11.11
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    14.81,
+    14.81
+   ]
+  ],
+  "bandsCount": 22,
+  "topBandMm": [
+   8.46,
+   11.11
+  ],
+  "bottomBandMm": [
+   273.21,
+   275.33
+  ]
+ },
+ "short-p1-screen.png": {
+  "dpi": 96,
+  "mmPerPx": 0.2645,
+  "heightMm": 297.02,
+  "inkInHeader0to10": [],
+  "inkNearContentTop11to18": [],
+  "bandsCount": 19,
+  "topBandMm": [
+   21.42,
+   34.12
+  ],
+  "bottomBandMm": [
+   216.88,
+   220.05
+  ]
+ },
+ "short-p2-screen.png": {
+  "dpi": 96,
+  "mmPerPx": 0.2645,
+  "heightMm": 297.28,
+  "inkInHeader0to10": [
+   [
+    8.73,
+    11.37
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    14.81,
+    14.81
+   ]
+  ],
+  "bandsCount": 15,
+  "topBandMm": [
+   8.73,
+   11.37
+  ],
+  "bottomBandMm": [
+   273.21,
+   275.33
+  ]
+ },
+ "xl-p1-screen.png": {
+  "dpi": 96,
+  "mmPerPx": 0.2645,
+  "heightMm": 297.02,
+  "inkInHeader0to10": [],
+  "inkNearContentTop11to18": [],
+  "bandsCount": 29,
+  "topBandMm": [
+   21.42,
+   34.12
+  ],
+  "bottomBandMm": [
+   266.07,
+   269.24
+  ]
+ },
+ "xl-p2-screen.png": {
+  "dpi": 96,
+  "mmPerPx": 0.2645,
+  "heightMm": 297.28,
+  "inkInHeader0to10": [
+   [
+    8.73,
+    11.37
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    14.81,
+    14.81
+   ]
+  ],
+  "bandsCount": 39,
+  "topBandMm": [
+   8.73,
+   11.37
+  ],
+  "bottomBandMm": [
+   265.81,
+   268.98
+  ]
+ },
+ "xl-p3-screen.png": {
+  "dpi": 96,
+  "mmPerPx": 0.2645,
+  "heightMm": 297.02,
+  "inkInHeader0to10": [
+   [
+    8.46,
+    11.11
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    14.81,
+    14.81
+   ]
+  ],
+  "bandsCount": 39,
+  "topBandMm": [
+   8.46,
+   11.11
+  ],
+  "bottomBandMm": [
+   265.81,
+   268.98
+  ]
+ },
+ "xl-p4-screen.png": {
+  "dpi": 96,
+  "mmPerPx": 0.2645,
+  "heightMm": 297.28,
+  "inkInHeader0to10": [
+   [
+    8.73,
+    11.37
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    14.81,
+    14.81
+   ]
+  ],
+  "bandsCount": 27,
+  "topBandMm": [
+   8.73,
+   11.37
+  ],
+  "bottomBandMm": [
+   273.21,
+   275.33
+  ]
+ },
+ "xl-p5-screen.png": {
+  "dpi": 96,
+  "mmPerPx": 0.2645,
+  "heightMm": 297.02,
+  "inkInHeader0to10": [
+   [
+    2.91,
+    3.17
+   ],
+   [
+    3.7,
+    6.08
+   ],
+   [
+    9.79,
+    9.79
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    16.13,
+    16.4
+   ],
+   [
+    16.93,
+    19.31
+   ]
+  ],
+  "bandsCount": 33,
+  "topBandMm": [
+   2.91,
+   3.17
+  ],
+  "bottomBandMm": [
+   273.21,
+   275.33
+  ]
+ },
+ "pdf-raster\\laudo-0008-signed-pg1.png": {
+  "dpi": 150,
+  "mmPerPx": 0.1763,
+  "heightMm": 296.93,
+  "inkInHeader0to10": [],
+  "inkNearContentTop11to18": [],
+  "bandsCount": 24,
+  "topBandMm": [
+   50.25,
+   50.78
+  ],
+  "bottomBandMm": [
+   265.19,
+   268.19
+  ]
+ },
+ "pdf-raster\\laudo-0008-signed-pg2.png": {
+  "dpi": 150,
+  "mmPerPx": 0.1763,
+  "heightMm": 296.93,
+  "inkInHeader0to10": [
+   [
+    8.82,
+    11.46
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    14.81,
+    14.99
+   ]
+  ],
+  "bandsCount": 29,
+  "topBandMm": [
+   8.82,
+   11.46
+  ],
+  "bottomBandMm": [
+   265.19,
+   268.36
+  ]
+ },
+ "pdf-raster\\laudo-0008-signed-pg3.png": {
+  "dpi": 150,
+  "mmPerPx": 0.1763,
+  "heightMm": 296.93,
+  "inkInHeader0to10": [
+   [
+    8.82,
+    11.46
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    14.81,
+    14.99
+   ]
+  ],
+  "bandsCount": 23,
+  "topBandMm": [
+   8.82,
+   11.46
+  ],
+  "bottomBandMm": [
+   187.08,
+   190.25
+  ]
+ },
+ "pdf-raster\\laudo-0008-signed-pg4.png": {
+  "dpi": 150,
+  "mmPerPx": 0.1763,
+  "heightMm": 296.93,
+  "inkInHeader0to10": [
+   [
+    8.82,
+    11.46
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    14.81,
+    14.99
+   ]
+  ],
+  "bandsCount": 13,
+  "topBandMm": [
+   8.82,
+   11.46
+  ],
+  "bottomBandMm": [
+   139.29,
+   141.59
+  ]
+ },
+ "pdf-raster\\long-pg1.png": {
+  "dpi": 150,
+  "mmPerPx": 0.1762,
+  "heightMm": 297.03,
+  "inkInHeader0to10": [],
+  "inkNearContentTop11to18": [],
+  "bandsCount": 30,
+  "topBandMm": [
+   21.49,
+   34
+  ],
+  "bottomBandMm": [
+   266.02,
+   269.02
+  ]
+ },
+ "pdf-raster\\long-pg2.png": {
+  "dpi": 150,
+  "mmPerPx": 0.1762,
+  "heightMm": 297.03,
+  "inkInHeader0to10": [
+   [
+    8.63,
+    11.28
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    14.8,
+    14.97
+   ]
+  ],
+  "bandsCount": 35,
+  "topBandMm": [
+   8.63,
+   11.28
+  ],
+  "bottomBandMm": [
+   262.32,
+   264.79
+  ]
+ },
+ "pdf-raster\\long-pg3.png": {
+  "dpi": 150,
+  "mmPerPx": 0.1762,
+  "heightMm": 297.03,
+  "inkInHeader0to10": [
+   [
+    8.63,
+    11.28
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    14.8,
+    14.97
+   ]
+  ],
+  "bandsCount": 23,
+  "topBandMm": [
+   8.63,
+   11.28
+  ],
+  "bottomBandMm": [
+   273.07,
+   275.36
+  ]
+ },
+ "pdf-raster\\mid-pg1.png": {
+  "dpi": 150,
+  "mmPerPx": 0.1762,
+  "heightMm": 297.03,
+  "inkInHeader0to10": [],
+  "inkNearContentTop11to18": [],
+  "bandsCount": 14,
+  "topBandMm": [
+   21.49,
+   34
+  ],
+  "bottomBandMm": [
+   171.07,
+   181.11
+  ]
+ },
+ "pdf-raster\\mid-pg2.png": {
+  "dpi": 150,
+  "mmPerPx": 0.1762,
+  "heightMm": 297.03,
+  "inkInHeader0to10": [
+   [
+    8.63,
+    11.28
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    14.8,
+    14.97
+   ]
+  ],
+  "bandsCount": 33,
+  "topBandMm": [
+   8.63,
+   11.28
+  ],
+  "bottomBandMm": [
+   241.36,
+   244.53
+  ]
+ },
+ "pdf-raster\\mid-pg3.png": {
+  "dpi": 150,
+  "mmPerPx": 0.1762,
+  "heightMm": 297.03,
+  "inkInHeader0to10": [
+   [
+    8.63,
+    11.28
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    14.8,
+    14.97
+   ]
+  ],
+  "bandsCount": 22,
+  "topBandMm": [
+   8.63,
+   11.28
+  ],
+  "bottomBandMm": [
+   273.07,
+   275.36
+  ]
+ },
+ "pdf-raster\\short-pg1.png": {
+  "dpi": 150,
+  "mmPerPx": 0.1762,
+  "heightMm": 297.03,
+  "inkInHeader0to10": [],
+  "inkNearContentTop11to18": [],
+  "bandsCount": 19,
+  "topBandMm": [
+   21.49,
+   34
+  ],
+  "bottomBandMm": [
+   216.87,
+   219.87
+  ]
+ },
+ "pdf-raster\\short-pg2.png": {
+  "dpi": 150,
+  "mmPerPx": 0.1762,
+  "heightMm": 297.03,
+  "inkInHeader0to10": [
+   [
+    8.63,
+    11.28
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    14.8,
+    14.97
+   ]
+  ],
+  "bandsCount": 15,
+  "topBandMm": [
+   8.63,
+   11.28
+  ],
+  "bottomBandMm": [
+   273.07,
+   275.36
+  ]
+ },
+ "pdf-raster\\xl-pg1.png": {
+  "dpi": 150,
+  "mmPerPx": 0.1762,
+  "heightMm": 297.03,
+  "inkInHeader0to10": [],
+  "inkNearContentTop11to18": [],
+  "bandsCount": 30,
+  "topBandMm": [
+   21.49,
+   34
+  ],
+  "bottomBandMm": [
+   266.02,
+   269.02
+  ]
+ },
+ "pdf-raster\\xl-pg2.png": {
+  "dpi": 150,
+  "mmPerPx": 0.1762,
+  "heightMm": 297.03,
+  "inkInHeader0to10": [
+   [
+    8.63,
+    11.28
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    14.8,
+    14.97
+   ]
+  ],
+  "bandsCount": 39,
+  "topBandMm": [
+   8.63,
+   11.28
+  ],
+  "bottomBandMm": [
+   265.85,
+   268.84
+  ]
+ },
+ "pdf-raster\\xl-pg3.png": {
+  "dpi": 150,
+  "mmPerPx": 0.1762,
+  "heightMm": 297.03,
+  "inkInHeader0to10": [
+   [
+    8.63,
+    11.28
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    14.8,
+    14.97
+   ]
+  ],
+  "bandsCount": 39,
+  "topBandMm": [
+   8.63,
+   11.28
+  ],
+  "bottomBandMm": [
+   265.85,
+   268.84
+  ]
+ },
+ "pdf-raster\\xl-pg4.png": {
+  "dpi": 150,
+  "mmPerPx": 0.1762,
+  "heightMm": 297.03,
+  "inkInHeader0to10": [
+   [
+    8.63,
+    11.28
+   ]
+  ],
+  "inkNearContentTop11to18": [
+   [
+    14.8,
+    14.97
+   ]
+  ],
+  "bandsCount": 28,
+  "topBandMm": [
+   8.63,
+   11.28
+  ],
+  "bottomBandMm": [
+   273.07,
+   275.36
+  ]
+ }
+}

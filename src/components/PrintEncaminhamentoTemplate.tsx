@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { QrCodeSvg } from './QrCodeSvg';
 import { VerificationQrCard } from './VerificationQrCard';
 import { RichText } from './RichText';
+import { DOCTOR_CRM } from '../lib/doctor';
 import { getEncProfile } from '../data/encaminhamentoProfiles';
 
 // ── Isotipo médico — cerebro en línea fina ─────────────────────────────────
@@ -214,6 +215,9 @@ export const PrintEncaminhamentoTemplate: React.FC = () => {
             <p style={{ margin: 0, fontSize: '9.5px', color: SECONDARY, letterSpacing: '0.04em' }}>
               {t('print_encaminhamento_signature')}
             </p>
+            {!isSigning && (
+              <p style={{ margin: '4px 0 0 0', fontSize: '9.5px', fontWeight: 700, color: SECONDARY }}>{DOCTOR_CRM}</p>
+            )}
           </div>
         </div>
 
@@ -268,7 +272,7 @@ export const PrintEncaminhamentoTemplate: React.FC = () => {
               en NeuroMóbius; NeuroIsbe nunca los tuvo). */}
           {isSigning && (
             <div style={{ display: 'flex', justifyContent: 'flex-end', paddingBottom: '18px' }}>
-              <VerificationQrCard qrContent={verificationQr!} token={verificationToken!} size="compact"
+              <VerificationQrCard qrContent={verificationQr!} token={verificationToken!} accessCode={enc?.accessCode} size="compact"
                 dark={p.printQrDark} surface={SURFACE} surfaceBorder={SURFACE_BORDER} accent={PRIMARY} />
             </div>
           )}

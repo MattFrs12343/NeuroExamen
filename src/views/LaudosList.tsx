@@ -33,6 +33,7 @@ export const LaudosList: React.FC = () => {
   const {
     laudos, setCurrentView, triggerDirectPrintLaudo,
     deleteLaudo, setActiveLaudoForEdit,
+    setSignPrintBusy,
   } = useApp();
 
   const [filterPatient,  setFilterPatient]  = useState('');
@@ -94,12 +95,13 @@ export const LaudosList: React.FC = () => {
 
   const handleSignPrint = async (laudo: Laudo) => {
     setSigningId(laudo.id);
+    setSignPrintBusy(true);
     try {
       // El servidor arma el PDF de cero a partir de la fila en la base —
       // no hace falta el record en memoria, solo el id.
       await printSignedPdf('laudos', laudo.id);
     } catch (err) { alert(t('sign_pdf_error', { message: getErrorMessage(err) })); }
-    finally { setSigningId(null); }
+    finally { setSigningId(null); setSignPrintBusy(false); }
   };
 
   const handleEdit = (l: Laudo) => {
@@ -122,11 +124,6 @@ export const LaudosList: React.FC = () => {
   };
 
   const conclusaoBadge = (l: Laudo) => {
-    const map: Record<string, string> = {
-      apto: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      inapto_temporario: 'bg-amber-50 text-amber-700 border-amber-200',
-      inapto_definitivo: 'bg-red-50 text-red-700 border-red-200',
-    };
     if (!l.conclusao) {
       return (
         <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border bg-slate-100 text-slate-500 border-slate-200">
@@ -135,10 +132,23 @@ export const LaudosList: React.FC = () => {
         </span>
       );
     }
+    // Color solo para las 3 conclusiones originales, que son las que el
+    // médico reconoce de un vistazo; las que agregue van en neutro. El TEXTO
+    // sale del snapshot del laudo (conclusaoOpcoes) — o sea, el mismo que se
+    // imprimió — con la traducción como red para los laudos viejos sin
+    // snapshot. Para un id desconocido (opción borrada del catálogo y sin
+    // snapshot) se muestra el id: mejor eso que la clave i18n "laudo_...".
+    const colors: Record<string, string> = {
+      apto: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      inapto_temporario: 'bg-amber-50 text-amber-700 border-amber-200',
+      inapto_definitivo: 'bg-red-50 text-red-700 border-red-200',
+    };
+    const snapLabel = l.conclusaoOpcoes?.find(o => o.id === l.conclusao)?.label;
+    const label = snapLabel ?? (colors[l.conclusao] ? t(`laudo_${l.conclusao}`) : l.conclusao);
     return (
-      <span className={cn('inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border', map[l.conclusao] || 'bg-slate-100 text-slate-600 border-slate-200')}>
+      <span className={cn('inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border', colors[l.conclusao] || 'bg-slate-100 text-slate-600 border-slate-200')}>
         <Gavel size={11} />
-        {t(`laudo_${l.conclusao}`)}
+        {label}
       </span>
     );
   };

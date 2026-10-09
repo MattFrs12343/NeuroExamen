@@ -5,6 +5,7 @@ import cerebroLogo from '../assets/cerebro.png';
 import { VerificationQrCard } from './VerificationQrCard';
 import { RichText } from './RichText';
 import type { Order } from '../types';
+import { DOCTOR_CRM } from '../lib/doctor';
 
 const BLUE = '#0066CC';
 const GRAY = '#555555';
@@ -46,7 +47,7 @@ const PrintPage: React.FC<PrintPageProps> = ({ order, formattedDate, entry, isLa
       <div style={{ textAlign: 'center', marginBottom: '16px' }}>
         <img
           src={cerebroLogo}
-          alt="NeuroExámenes"
+          alt="NeuroExÃ¡menes"
           style={{ width: '80px', height: '80px', objectFit: 'contain', display: 'inline-block' }}
         />
       </div>
@@ -72,7 +73,7 @@ const PrintPage: React.FC<PrintPageProps> = ({ order, formattedDate, entry, isLa
         borderRadius: '1px',
       }} />
 
-      {/* PATIENT + DATE (+ QR de verificação, só ao assinar) */}
+      {/* PATIENT + DATE (+ QR de verificaÃ§Ã£o, sÃ³ ao assinar) */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '28px' }}>
         <div style={{ flex: 1, minWidth: 0, fontSize: '13px', lineHeight: '1.7', color: '#111' }}>
           <div>
@@ -112,7 +113,7 @@ const PrintPage: React.FC<PrintPageProps> = ({ order, formattedDate, entry, isLa
 
         {verificationQr && verificationToken && (
           <div style={{ flexShrink: 0 }}>
-            <VerificationQrCard qrContent={verificationQr} token={verificationToken} size="default" />
+            <VerificationQrCard qrContent={verificationQr} token={verificationToken} accessCode={order?.accessCode} size="default" />
           </div>
         )}
       </div>
@@ -235,8 +236,8 @@ const PrintPage: React.FC<PrintPageProps> = ({ order, formattedDate, entry, isLa
           )}
         </div>
 
-        {/* Signature block — espacio reservado arriba de la línea para que
-            el médico pueda sellar (carimbo) y firmar sin chocar con la
+        {/* Signature block â€” espacio reservado arriba de la lÃ­nea para que
+            el mÃ©dico pueda sellar (carimbo) y firmar sin chocar con la
             barra divisoria de arriba. */}
         <div style={{ textAlign: 'center', minWidth: '220px' }}>
           <div style={{ height: '60px' }} />
@@ -255,6 +256,9 @@ const PrintPage: React.FC<PrintPageProps> = ({ order, formattedDate, entry, isLa
           }}>
             {t('print_sign_label')}
           </p>
+          {!verificationQr && (
+            <p style={{ margin: '4px 0 0 0', fontSize: '10px', fontWeight: 700, color: GRAY }}>{DOCTOR_CRM}</p>
+          )}
         </div>
       </div>
 
@@ -281,7 +285,7 @@ export const PrintTemplate: React.FC = () => {
 
   const customExamsMap = (order.customExams as Record<string, { id: string; name: string; category: string; categoryTitle?: string }>) || {};
 
-  // One entry per individually requested exam — each prints on its own page.
+  // One entry per individually requested exam â€” each prints on its own page.
   const examEntries: PrintExamEntry[] = [];
 
   order.exams.forEach((examId) => {

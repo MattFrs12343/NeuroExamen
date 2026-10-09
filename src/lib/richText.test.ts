@@ -31,20 +31,32 @@ describe('richTextToHtml — idempotencia y escapado', () => {
     const out = richTextToHtml(evil);
     expect(out).not.toContain('<script>');
     expect(out).not.toContain('<style>');
-    // El atributo queda como TEXTO escapado: nunca se re-habilita una etiqueta
-    // con atributos, solo las desnudas <b>/<u>/<br>.
+    // La etiqueta con atributos se ELIMINA completa (no queda como texto
+    // legible): solo el </b> desnudo se re-habilita.
     expect(out).not.toContain('<b onclick');
-    expect(out).toContain('&lt;b onclick');
-    // El <b> con onclick NO se re-habilita; el </b> desnudo sí.
-    expect(out).not.toContain('<b>ok</b>');
-    expect(out).toContain('ok</b>');
+    expect(out).not.toContain('&lt;b onclick');
+    expect(out).toBe('alert(1)ok</b>*');
     expect(richTextToHtml('<b>ok</b>')).toBe('<b>ok</b>');
+  });
+
+  it('elimina etiquetas no permitidas (span/font/etc.) y conserva su texto', () => {
+    expect(richTextToHtml('texto <span style="font-weight:normal">x</span> más')).toBe('texto x más');
+    expect(richTextToHtml('<font color="red">rojo</font>')).toBe('rojo');
+    expect(richTextToHtml('<i>itálico</i><b>negrita</b>')).toBe('itálico<b>negrita</b>');
   });
 
   it('convierte strong a b y salta <br> y texto legado con \\n', () => {
     expect(richTextToHtml('<strong>n</strong>')).toBe('<b>n</b>');
     expect(richTextToHtml('a<br>b')).toBe('a<br>b');
     expect(richTextToHtml('a\nb')).toBe('a<br>b');
+  });
+
+  it('normaliza <div>/<p> de contentEditable (teclados táctiles) a <br>, sin dejarlos visibles', () => {
+    expect(richTextToHtml('a<div>b</div><div>c</div>')).toBe('a<br>b<br>c<br>');
+    expect(richTextToHtml('<p>a</p><p>b</p>')).toBe('a<br>b<br>');
+    // Atributos inyectados en <div>/<p> se descartan enteros, no se escapan.
+    expect(richTextToHtml('<div onclick="x()">a</div>')).not.toContain('onclick');
+    expect(richTextToHtml('<div onclick="x()">a</div>')).not.toContain('<div');
   });
 });
 

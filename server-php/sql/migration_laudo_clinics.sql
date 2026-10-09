@@ -31,6 +31,14 @@ CREATE TABLE IF NOT EXISTS laudo_clinics (
 -- cuando el perfil no tiene uno cargado (ver lib/laudoProfiles.php).
 -- La fila con clinic_name = 'clinica_saude_campinas' es de compatibilidad
 -- para laudos viejos cuyo template_id guardaba esa key interna.
+--
+-- base_info y default_narrative van a NULL a propósito: el sistema NO debe
+-- traer texto pre-escrito. Antes esta clínica traía una base info y una
+-- narrativa completa de ejemplo (con CIDs y diagnóstico de un paciente real)
+-- que el fallback de formato de la UI le copiaba a todas las clínicas sin
+-- perfil propio — con el riesgo de firmar un laudo con el texto de otro.
+-- El médico escribe la base info y la narrativa de cada paciente, y cada
+-- clínica puede cargar las suyas desde el editor de perfil de laudo.
 INSERT INTO laudo_clinics
   (clinic_name, doctor_name, doctor_crm, clinic_name_fiscal, clinic_address, clinic_phone, base_info, default_narrative, local)
 VALUES
@@ -40,8 +48,8 @@ VALUES
    'CLINICA MEDICA E ODONTOLOGICA N&V LTDA',
    'RUA BERNARDINO DE CAMPOS, 927 - CENTRO - CAMPINAS / SP',
    '(19) 99558-9842',
-   'Segundo informações prestadas pela(o) paciente, averiguadas em registros de prontuários médicos e exames complementares.',
-   'Declaro que o referido paciente encontra-se em seguimento por Ansiedade, Estados Depressivos, e Agorafobia.\nCID 10 F33 + CID 10 F40 + CID 10 F41.9\nFaz uso de inúmeras drogas psicotrópicas em altas doses com efeito sedativo dado o efeito psicotrópico do tratamento não apresenta condições laborais atuais.\nPaciente foi encaminhado para PSIQUIATRIA para iniciar seu processo de reabilitação não conseguindo fazer nenhuma atividade física nem laboral por tempo indeterminado.\nConforme laudo em anexo do especialista em anexo.\nA segurado acima relata que não tem condições de exercer sua atividade laborativas.\nSolicito do prezado colega medico-perito, que após sua análise detalhada desta ponderação e considerando-se os fatos relatados de seu impedimento da sua atividade laborativa com base nas informações prestadas pelo médico especialista (Relatório médico em anexo), com regulamento pelo decreto número 3.048/1999.\nDesta forma, solicito desse órgão a realização da perícia medica e caracterização de sua incapacidade e a concessão do benefício para que o funcionária/segurada possa usufruir dos direitos previdenciários.',
+   NULL,
+   NULL,
    'Campinas - SP')
 ON DUPLICATE KEY UPDATE
   doctor_name        = VALUES(doctor_name),
@@ -63,8 +71,8 @@ VALUES
    'CLINICA MEDICA E ODONTOLOGICA N&V LTDA',
    'RUA BERNARDINO DE CAMPOS, 927 - CENTRO - CAMPINAS / SP',
    '(19) 99558-9842',
-   'Segundo informações prestadas pela(o) paciente, averiguadas em registros de prontuários médicos e exames complementares.',
-   'Declaro que o referido paciente encontra-se em seguimento por Ansiedade, Estados Depressivos, e Agorafobia.\nCID 10 F33 + CID 10 F40 + CID 10 F41.9\nFaz uso de inúmeras drogas psicotrópicas em altas doses com efeito sedativo dado o efeito psicotrópico do tratamento não apresenta condições laborais atuais.\nPaciente foi encaminhado para PSIQUIATRIA para iniciar seu processo de reabilitação não conseguindo fazer nenhuma atividade física nem laboral por tempo indeterminado.\nConforme laudo em anexo do especialista em anexo.\nA segurado acima relata que não tem condições de exercer sua atividade laborativas.\nSolicito do prezado colega medico-perito, que após sua análise detalhada desta ponderação e considerando-se os fatos relatados de seu impedimento da sua atividade laborativa com base nas informações prestadas pelo médico especialista (Relatório médico em anexo), com regulamento pelo decreto número 3.048/1999.\nDesta forma, solicito desse órgão a realização da perícia medica e caracterização de sua incapacidade e a concessão do benefício para que o funcionária/segurada possa usufruir dos direitos previdenciários.',
+   NULL,
+   NULL,
    'Campinas - SP')
 ON DUPLICATE KEY UPDATE
   doctor_name        = VALUES(doctor_name),

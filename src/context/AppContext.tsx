@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import type { ViewType, User, Patient, Exam, Order, OrderStatus, Receta, MedicationLine, ClinicProfile, Encaminhamento, Atestado, FormulaLeite, Receituario, Laudo, LaudoClinicProfile } from '../types';
+import type { ViewType, User, Patient, Exam, Order, OrderStatus, Receta, MedicationLine, ClinicProfile, Encaminhamento, Atestado, FormulaLeite, Receituario, Laudo, LaudoClinicProfile, LaudoConclusaoOption } from '../types';
 import type { EncProfileKey } from '../data/encaminhamentoProfiles';
 import { INITIAL_EXAMS } from '../data/seedData';
 import printCerebroImg from '../assets/print-neurocerebro.webp';
@@ -19,6 +19,36 @@ const authHeaders = () => ({
   Authorization: `Bearer ${getToken()}`,
 });
 
+/**
+ * Lee el JSON de una respuesta sin romperse si el cuerpo viene vacío.
+ *
+ * El backend corre con display_errors=Off, así que un error fatal de PHP
+ * responde 500 y SIN cuerpo. Con un `await res.json()` a secas, eso producía
+ * "Failed to execute 'json' on 'Response': Unexpected end of JSON input",
+ * que no dice absolutamente nada. Acá se transforma en un mensaje con el
+ * status y la URL, que sí sirve para diagnosticar.
+ */
+async function readJson<T>(res: Response, what: string): Promise<T> {
+  const raw = await res.text();
+  if (raw.trim() === '') {
+    throw new Error(
+      `${what}: el servidor respondió ${res.status} sin contenido ` +
+      `(${res.statusText || 'sin motivo'}). Revisá el log de Apache/PHP.`
+    );
+  }
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    // Cuerpo no-JSON: normalmente el índice de PHP devolvió HTML, o un
+    // warning se imprimió antes del JSON. Se muestra el principio para
+    // que se vea qué salió.
+    throw new Error(
+      `${what}: el servidor respondió ${res.status} con un cuerpo que no es JSON ` +
+      `(empieza con "${raw.slice(0, 120)}").`
+    );
+  }
+}
+
 interface AppContextProps {
   currentView: ViewType;
   setCurrentView: (view: ViewType) => void;
@@ -37,6 +67,11 @@ interface AppContextProps {
   clinics: string[];
   clinicProfiles: ClinicProfile[];
   customExamsCatalog: { id: string; name: string }[];
+  /** Opciones administrables de la "Conclusión Pericial" (tabla laudo_conclusoes). */
+  laudoConclusoesCatalog: LaudoConclusaoOption[];
+  addLaudoConclusao: (label: string) => Promise<LaudoConclusaoOption>;
+  renameLaudoConclusao: (id: string, label: string) => Promise<void>;
+  deleteLaudoConclusao: (id: string) => Promise<void>;
   medicationsCatalog: { id: string; name: string }[];
   specialistsCatalog: { id: string; name: string; clinicProfile?: string | null }[];
   loading: boolean;
@@ -178,9 +213,17 @@ interface AppContextProps {
   // — incluida la subida y firma en el servidor, que suele ser la parte más
   // lenta — para que el overlay de carga no desaparezca a mitad de camino.
   signPrintBusy: boolean;
+  /** Expuesto para que cualquier flujo de "Assinar e imprimir" (hoy Laudos,
+      que genera el PDF firmado del lado del servidor con TCPDF sin pasar por
+      triggerSignAndPrint) encienda el overlay de pantalla completa mientras
+      dura la generación/firma del PDF. */
+  setSignPrintBusy: (busy: boolean) => void;
 }
 
-const AppContext = createContext<AppContextProps | undefined>(undefined);
+// Exportado para el harness de reproducción de impresión (src/dev-print.tsx),
+// que provee un valor de contexto mínimo sin pasar por el AppProvider real.
+// eslint-disable-next-line react-refresh/only-export-components
+export const AppContext = createContext<AppContextProps | undefined>(undefined);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [currentView, setCurrentView] = useState<ViewType>('login');
@@ -197,6 +240,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [clinicProfiles, setClinicProfiles] = useState<ClinicProfile[]>([]);
   const [laudoClinics, setLaudoClinics] = useState<LaudoClinicProfile[]>([]);
   const [customExamsCatalog, setCustomExamsCatalog] = useState<{ id: string; name: string }[]>([]);
+  const [laudoConclusoesCatalog, setLaudoConclusoesCatalog] = useState<LaudoConclusaoOption[]>([]);
   const [medicationsCatalog, setMedicationsCatalog] = useState<{ id: string; name: string }[]>([]);
   const [specialistsCatalog, setSpecialistsCatalog] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
@@ -421,7 +465,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         primaryDark: profile.primaryDark || '#0a3a63',
       }),
     });
-    const data = await res.json();
+    const data = await readJson<{ error?: string }>(res, 'No se pudo guardar el perfil de laudo');
     if (!res.ok) throw new Error(data.error || 'Error al guardar el perfil de laudo.');
     await refreshLaudoClinics();
   }, [refreshLaudoClinics]);
@@ -431,6 +475,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const res = await fetch(`${API}/custom-exams`, { headers: authHeaders() });
       if (res.ok) {
         setCustomExamsCatalog(await res.json());
+      } else {
+        handleAuthError(res.status);
+      }
+    } catch { /* server offline — keep current state */ }
+  }, [handleAuthError]);
+
+  // ── Laudo conclusion catalog ──────────────────────────────────────────────
+  const refreshLaudoConclusoesCatalog = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/laudo-conclusoes`, { headers: authHeaders() });
+      if (res.ok) {
+        setLaudoConclusoesCatalog(await res.json());
       } else {
         handleAuthError(res.status);
       }
@@ -483,9 +539,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     Promise.all([
       refreshPatients(), refreshOrders(), refreshRecetas(), refreshEncaminhamentos(), refreshAtestados(), refreshFormulaLeite(),
-      refreshReceituarios(), refreshLaudos(), refreshClinics(), refreshRecetaClinics(), refreshLaudoClinics(), refreshCustomExamsCatalog(), refreshMedicationsCatalog(),
+      refreshReceituarios(), refreshLaudos(), refreshClinics(), refreshRecetaClinics(), refreshLaudoClinics(), refreshCustomExamsCatalog(), refreshMedicationsCatalog(), refreshLaudoConclusoesCatalog(),
     ]).finally(() => setLoading(false));
-  }, [currentUser, refreshPatients, refreshOrders, refreshRecetas, refreshEncaminhamentos, refreshAtestados, refreshFormulaLeite, refreshReceituarios, refreshLaudos, refreshClinics, refreshRecetaClinics, refreshLaudoClinics, refreshCustomExamsCatalog, refreshMedicationsCatalog]);
+  }, [currentUser, refreshPatients, refreshOrders, refreshRecetas, refreshEncaminhamentos, refreshAtestados, refreshFormulaLeite, refreshReceituarios, refreshLaudos, refreshClinics, refreshRecetaClinics, refreshLaudoClinics, refreshCustomExamsCatalog, refreshMedicationsCatalog, refreshLaudoConclusoesCatalog]);
 
   // Specialist catalog is scoped per Encaminhamento clinic profile — refetch on profile switch.
   useEffect(() => {
@@ -591,6 +647,48 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return mostRecentWith(atestados, patientId, 'patientAddress', 'issuedAt')
         || mostRecentWith(recetas, patientId, 'patientAddress', 'date');
   }, [recetas, atestados]);
+
+  // ── Laudo "Conclusão Pericial" catalog ────────────────────────────────────
+  // Catálogo global administrable: el médico agrega, edita el texto y elimina
+  // opciones. Lo que ya está firmado no se toca — cada laudo guarda su propio
+  // snapshot de la lista (Laudo.conclusaoOpcoes).
+  const addLaudoConclusao = async (label: string): Promise<LaudoConclusaoOption> => {
+    const res = await fetch(`${API}/laudo-conclusoes`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ label }),
+    });
+    const data = await readJson<{ error?: string }>(res, 'No se pudo crear la conclusão');
+    if (!res.ok) throw new Error(data.error || 'Error al crear la conclusão.');
+    setLaudoConclusoesCatalog(prev => [...prev, data as LaudoConclusaoOption]);
+    return data as LaudoConclusaoOption;
+  };
+
+  /** Cambia el texto de una opción. El ID no cambia, así que los laudos que la tenían elegida siguen apuntando a la misma opción. */
+  const renameLaudoConclusao = async (id: string, label: string): Promise<void> => {
+    const res = await fetch(`${API}/laudo-conclusoes/${id}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify({ label }),
+    });
+    const data = await readJson<{ error?: string }>(res, 'No se pudo editar la conclusão');
+    if (!res.ok) throw new Error(data.error || 'Error al editar la conclusão.');
+    setLaudoConclusoesCatalog(prev => prev.map(o => o.id === id ? { ...o, label } : o));
+  };
+
+  /**
+   * Saca la opción del catálogo. Solo afecta a los laudos futuros: los ya
+   * firmados conservan su texto porque llevan el snapshot guardado.
+   */
+  const deleteLaudoConclusao = async (id: string): Promise<void> => {
+    const res = await fetch(`${API}/laudo-conclusoes/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    const data = await readJson<{ error?: string }>(res, 'No se pudo eliminar la conclusión');
+    if (!res.ok) throw new Error(data.error || 'Error al eliminar la conclusão.');
+    setLaudoConclusoesCatalog(prev => prev.filter(o => o.id !== id));
+  };
 
   // ── Custom exams catalog ─────────────────────────────────────────────────
   const addCustomExam = async (name: string): Promise<{ id: string; name: string }> => {
@@ -1036,7 +1134,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       headers: authHeaders(),
       body: JSON.stringify(data),
     });
-    const resData = await res.json();
+    const resData = await readJson<{ error?: string }>(res, 'No se pudo guardar el laudo');
     if (!res.ok) throw new Error(resData.error || 'Error al registrar laudo.');
     await refreshLaudos();
     return resData as Laudo;
@@ -1051,7 +1149,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       headers: authHeaders(),
       body: JSON.stringify(payload),
     });
-    const data = await res.json();
+    const data = await readJson<{ error?: string }>(res, 'No se pudo actualizar el laudo');
     if (!res.ok) throw new Error(data.error || 'Error al actualizar laudo.');
     await refreshLaudos();
   };
@@ -1402,6 +1500,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         clinicProfiles,
         laudoClinics,
         customExamsCatalog,
+        laudoConclusoesCatalog,
         medicationsCatalog,
         specialistsCatalog,
         loading,
@@ -1432,11 +1531,12 @@ refreshPatients, refreshOrders, refreshRecetas, refreshEncaminhamentos, refreshA
         addAtestado, updateAtestado, deleteAtestado,
         addFormulaLeite, updateFormulaLeite, deleteFormulaLeite,
         addPatient, updatePatient, getLastKnownPatientPhone, getLastKnownPatientAddress, addCustomExam, deleteCustomExam,
+        addLaudoConclusao, renameLaudoConclusao, deleteLaudoConclusao,
         addMedication, deleteMedication,
         addSpecialist, deleteSpecialist,
         addClinic, addRecetaClinic, saveLaudoClinicProfile,
         logout, triggerDirectPrint,
-        captureTarget, verificationQr, verificationToken, triggerSignAndPrint, signPrintBusy,
+        captureTarget, verificationQr, verificationToken, triggerSignAndPrint, signPrintBusy, setSignPrintBusy,
         triggerDownloadPdf,
       }}
     >

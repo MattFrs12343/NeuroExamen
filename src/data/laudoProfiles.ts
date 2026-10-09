@@ -55,30 +55,15 @@ export const LAUDO_PROFILES: Record<LaudoProfileKey, LaudoProfile> = {
     doctorName: 'DR. JUAN MARCELO CABELLO MERIDA',
     doctorCrm: 'CRM: 161792/SP',
     local: 'Campinas - SP',
-    baseInfo:
-      'Segundo informações prestadas pela(o) paciente, averiguadas em ' +
-      'registros de prontuários médicos e exames complementares.',
-    defaultNarrative:
-      'Declaro que o referido paciente encontra-se em seguimento por ' +
-      'Ansiedade, Estados Depressivos, e Agorafobia.\n' +
-      'CID 10 F33 + CID 10 F40 + CID 10 F41.9\n' +
-      'Faz uso de inúmeras drogas psicotrópicas em altas doses com efeito ' +
-      'sedativo dado o efeito psicotrópico do tratamento não apresenta ' +
-      'condições laborais atuais.\n' +
-      'Paciente foi encaminhado para PSIQUIATRIA para iniciar seu processo de ' +
-      'reabilitação não conseguindo fazer nenhuma atividade física nem laboral ' +
-      'por tempo indeterminado.\n' +
-      'Conforme laudo em anexo do especialista em anexo.\n' +
-      'A segurado acima relata que não tem condições de exercer sua atividade ' +
-      'laborativas.\n' +
-      'Solicito do prezado colega medico-perito, que após sua análise detalhada ' +
-      'desta ponderação e considerando-se os fatos relatados de seu impedimento ' +
-      'da sua atividade laborativa com base nas informações prestadas pelo ' +
-      'médico especialista (Relatório médico em anexo), com regulamento pelo ' +
-      'decreto número 3.048/1999.\n' +
-      'Desta forma, solicito desse órgão a realização da perícia medica e ' +
-      'caracterização de sua incapacidade e a concessão do benefício para que ' +
-      'o funcionária/segurada possa usufruir dos direitos previdenciários.',
+    // SIN texto pre-escrito, a propósito: la base info y la narrativa las
+    // escribe el médico para cada paciente. Antes CLINICA SAUDE CAMPINAS
+    // traía la base info y una narrativa completa de ejemplo (con CIDs y
+    // diagnóstico de un paciente real) que, por el fallback de formato de
+    // getLaudoProfileFor(), se le copiaba a TODAS las clínicas sin perfil
+    // propio — se corría el riesgo de firmar un laudo con el texto de otro.
+    // Cada clínica carga el suyo desde el editor de perfil de laudo.
+    baseInfo: '',
+    defaultNarrative: '',
   },
 };
 

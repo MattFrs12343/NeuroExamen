@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
-import type { LaudoConclusao, Laudo as LaudoDoc, LaudoClinicProfile } from '../types';
-import { ArrowLeft, Printer, FileSignature, Scale, RefreshCw, Search, X, Phone, Pencil, Upload, Check, Building2, Maximize2 } from 'lucide-react';
+import type { LaudoConclusao, Laudo as LaudoDoc, LaudoClinicProfile, LaudoConclusaoOption } from '../types';
+import { ArrowLeft, Printer, FileSignature, Scale, RefreshCw, Search, X, Phone, Pencil, PlusCircle, Trash2, Upload, Check, Building2, Maximize2 } from 'lucide-react';
 import { ClinicProfileField } from '../components/ClinicProfileField';
 import { Input } from '../components/ui/input';
 import { RichTextField } from '../components/ui/rich-text-field';
@@ -22,7 +22,9 @@ const todayLocalStr = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 };
 
-const CONCLUSOES: LaudoConclusao[] = ['apto', 'inapto_temporario', 'inapto_definitivo'];
+// Id de la conclusión que venía marcada por defecto antes de que el catálogo
+// fuera administrable. Se usa como default solo si el catálogo la tiene.
+const DEFAULT_CONCLUSAO = 'inapto_temporario';
 
 export const NewLaudo: React.FC = () => {
   const { t } = useTranslation();
@@ -31,6 +33,8 @@ export const NewLaudo: React.FC = () => {
     triggerDirectPrintLaudo, addLaudo, updateLaudo,
     activeLaudoForEdit, setActiveLaudoForEdit,
     saveLaudoClinicProfile, lastClinicName, setLastClinicName,
+    laudoConclusoesCatalog, addLaudoConclusao, renameLaudoConclusao, deleteLaudoConclusao,
+    signPrintBusy, setSignPrintBusy,
   } = useApp();
 
   const isEdit = !!activeLaudoForEdit;
@@ -45,7 +49,12 @@ export const NewLaudo: React.FC = () => {
   const [local, setLocal] = useState('');
   const [narrative, setNarrative] = useState('');
   const [cids, setCids] = useState('');
-  const [conclusao, setConclusao] = useState<LaudoConclusao | ''>('inapto_temporario');
+  const [conclusao, setConclusao] = useState<LaudoConclusao | ''>(DEFAULT_CONCLUSAO);
+  // Alta/edición/baja del catálogo de conclusiones (ver handle*Conclusao)
+  const [newConclusaoLabel, setNewConclusaoLabel] = useState('');
+  const [editingConclusaoId, setEditingConclusaoId] = useState<string | null>(null);
+  const [editingConclusaoLabel, setEditingConclusaoLabel] = useState('');
+  const [savingConclusao, setSavingConclusao] = useState(false);
   const [afastamentoDias, setAfastamentoDias] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [showPatDrop, setShowPatDrop] = useState(false);
@@ -128,6 +137,70 @@ export const NewLaudo: React.FC = () => {
     const q = patientName.trim().toLowerCase();
     return patients.filter(p => p.name.toLowerCase().includes(q)).slice(0, 8);
   }, [patients, patientName]);
+
+  /**
+   * Opciones a mostrar: el catálogo administrable, más la opción elegida si ya
+   * no está en el catálogo (puede pasar al editar un laudo viejo cuya opción
+   * fue borrada) — el snapshot del laudo la conserva, así que se muestra con
+   * su texto original en vez de dejar el radio sin marcar.
+   */
+  const conclusaoOptions = useMemo<LaudoConclusaoOption[]>(() => {
+    const list = [...laudoConclusoesCatalog];
+    if (conclusao && !list.some(o => o.id === conclusao)) {
+      const snap = activeLaudoForEdit?.conclusaoOpcoes?.find(o => o.id === conclusao);
+      if (snap) list.push(snap);
+    }
+    return list;
+  }, [laudoConclusoesCatalog, conclusao, activeLaudoForEdit]);
+
+  const handleCreateConclusao = async () => {
+    const label = newConclusaoLabel.trim();
+    if (!label) return;
+    setSavingConclusao(true);
+    try {
+      const created = await addLaudoConclusao(label);
+      setNewConclusaoLabel('');
+      setConclusao(created.id);
+    } catch (e) {
+      alert(t('save_error_msg', { message: getErrorMessage(e) }));
+    } finally {
+      setSavingConclusao(false);
+    }
+  };
+
+  const openEditConclusao = (opt: LaudoConclusaoOption) => {
+    setEditingConclusaoId(opt.id);
+    setEditingConclusaoLabel(opt.label);
+  };
+
+  const handleSaveConclusaoEdit = async () => {
+    if (!editingConclusaoId) return;
+    const label = editingConclusaoLabel.trim();
+    if (!label) { setEditingConclusaoId(null); return; }
+    setSavingConclusao(true);
+    try {
+      await renameLaudoConclusao(editingConclusaoId, label);
+      setEditingConclusaoId(null);
+    } catch (e) {
+      alert(t('save_error_msg', { message: getErrorMessage(e) }));
+    } finally {
+      setSavingConclusao(false);
+    }
+  };
+
+  const handleDeleteConclusao = async (opt: LaudoConclusaoOption) => {
+    if (!confirm(t('laudo_conclusao_delete_confirm', { label: opt.label }))) return;
+    setSavingConclusao(true);
+    try {
+      await deleteLaudoConclusao(opt.id);
+      if (conclusao === opt.id) setConclusao('');
+      if (editingConclusaoId === opt.id) setEditingConclusaoId(null);
+    } catch (e) {
+      alert(t('save_error_msg', { message: getErrorMessage(e) }));
+    } finally {
+      setSavingConclusao(false);
+    }
+  };
 
   const handleSelectClinic = (name: string) => {
     const key = normalizeClinicKey(name);
@@ -221,6 +294,12 @@ export const NewLaudo: React.FC = () => {
     }
   };
 
+  // La conclusión por defecto se setea antes de que llegue el catálogo: si esa
+  // opción ya no existe (el médico la borró), o el catálogo todavía no cargó,
+  // el id no está en la lista visible y no debe mandarse — si fuera, el PDF
+  // imprimiría los checkboxes sin ninguno marcado.
+  const conclusaoValida = conclusao && conclusaoOptions.some(o => o.id === conclusao) ? conclusao : '';
+
   const laudoData = {
     templateId: clinicKey || undefined,
     ...clinicSnapshot(),
@@ -233,7 +312,10 @@ export const NewLaudo: React.FC = () => {
     local: local.trim() || laudoProfile?.local || undefined,
     narrative,
     cids: cids.trim() || undefined,
-    conclusao: conclusao || undefined,
+    conclusao: conclusaoValida || undefined,
+    // Se manda la lista completa: la API la guarda como snapshot para que el
+    // PDF firmado no cambie si después se edita o borra una opción.
+    conclusaoOpcoes: conclusaoValida ? conclusaoOptions : undefined,
     afastamentoDias: afastamentoDias ? Number(afastamentoDias) : undefined,
     observacoes: isRichTextEmpty(observacoes) ? undefined : observacoes,
   };
@@ -285,7 +367,9 @@ export const NewLaudo: React.FC = () => {
 
   const handleSignPrint = async () => {
     if (!patientName.trim()) { alert(t('laudo_validation_specs')); return; }
+    if (signPrintBusy) return;
     setSigning(true);
+    setSignPrintBusy(true);
     try {
       // El PDF firmado lo arma el servidor DE CERO a partir de la fila en
       // la base (ver api/laudos/signed-pdf.php — TCPDF, no captura del
@@ -306,6 +390,7 @@ export const NewLaudo: React.FC = () => {
       alert(t('sign_pdf_error', { message: getErrorMessage(e) }));
     } finally {
       setSigning(false);
+      setSignPrintBusy(false);
     }
   };
 
@@ -669,24 +754,106 @@ export const NewLaudo: React.FC = () => {
             {/* Conclusão + afastamento */}
             <div className="mt-4 rounded-xl border border-slate-200 p-4 space-y-3">
               <div>
-                <label className="block font-bold uppercase" style={{ fontSize: '10px', letterSpacing: '0.04em', color: '#6B7280', marginBottom: '6px' }}>
-                  {t('laudo_conclusao_label')}
-                </label>
-                <div className="space-y-1.5">
-                  {CONCLUSOES.map(opt => (
-                    <label key={opt} className="flex items-start gap-2.5 cursor-pointer select-none">
-                      <input
-                        type="radio"
-                        name="laudo-conclusao"
-                        checked={conclusao === opt}
-                        onClick={() => { if (conclusao === opt) setConclusao(''); }}
-                        onChange={() => setConclusao(opt)}
-                        className="mt-0.5 accent-[#0F4C81]"
-                      />
-                      <span className="text-sm text-slate-700">{t(`laudo_${opt}`)}</span>
-                    </label>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <label className="block font-bold uppercase" style={{ fontSize: '10px', letterSpacing: '0.04em', color: '#6B7280' }}>
+                    {t('laudo_conclusao_label')}
+                  </label>
+                  {conclusaoOptions.length > 1 && (
+                    <span style={{ fontSize: '10px', color: '#9CA3AF' }}>{t('laudo_conclusao_manage_hint')}</span>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  {conclusaoOptions.map(opt => (
+                    <div key={opt.id} className="group flex items-start gap-2.5">
+                      {editingConclusaoId === opt.id ? (
+                        /* Edición del texto de la opción */
+                        <div className="flex-1 flex items-center gap-2 py-0.5">
+                          <Input
+                            autoFocus
+                            value={editingConclusaoLabel}
+                            onChange={e => setEditingConclusaoLabel(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') { e.preventDefault(); void handleSaveConclusaoEdit(); }
+                              if (e.key === 'Escape') setEditingConclusaoId(null);
+                            }}
+                            className="h-8 text-sm border-slate-200 bg-white"
+                            style={{ fontSize: '13px' }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void handleSaveConclusaoEdit()}
+                            disabled={savingConclusao}
+                            className="p-1.5 rounded-lg bg-[#0F4C81] text-white hover:bg-[#0a3a63] disabled:opacity-50 transition-colors shrink-0"
+                            title={t('laudo_conclusao_edit_save')}
+                          >
+                            <Check size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingConclusaoId(null)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
+                            title={t('laudo_conclusao_edit_cancel')}
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <label className="flex-1 flex items-start gap-2.5 cursor-pointer select-none py-0.5">
+                            <input
+                              type="radio"
+                              name="laudo-conclusao"
+                              checked={conclusao === opt.id}
+                              onClick={() => { if (conclusao === opt.id) setConclusao(''); }}
+                              onChange={() => setConclusao(opt.id)}
+                              className="mt-0.5 accent-[#0F4C81]"
+                            />
+                            <span className="text-sm text-slate-700">{opt.label}</span>
+                          </label>
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => openEditConclusao(opt)}
+                              className="p-1.5 rounded-lg text-slate-300 hover:text-[#0F4C81] hover:bg-[#0F4C81]/5 transition-colors"
+                              title={t('laudo_conclusao_edit')}
+                            >
+                              <Pencil size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteConclusao(opt)}
+                              className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                              title={t('laudo_conclusao_delete')}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   ))}
                 </div>
+
+                {/* Alta de una conclusión nueva al catálogo */}
+                <div className="flex gap-2 mt-2">
+                  <Input
+                    className="h-8 text-sm border-slate-200 bg-slate-50/50 focus:bg-white"
+                    style={{ fontSize: '13px' }}
+                    placeholder={t('laudo_conclusao_add_placeholder')}
+                    value={newConclusaoLabel}
+                    onChange={e => setNewConclusaoLabel(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void handleCreateConclusao(); } }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleCreateConclusao()}
+                    disabled={savingConclusao || !newConclusaoLabel.trim()}
+                    className="flex items-center gap-1.5 px-2.5 rounded-lg bg-[#0F4C81] hover:bg-[#0a3a63] text-white text-xs font-bold disabled:opacity-40 transition-colors shrink-0"
+                  >
+                    <PlusCircle size={13} /> {t('laudo_conclusao_add_btn')}
+                  </button>
+                </div>
+
                 <p className="mt-2" style={{ fontSize: '11px', color: '#9CA3AF' }}>
                   {t('laudo_conclusao_clear_hint')}
                 </p>
@@ -786,10 +953,19 @@ export const NewLaudo: React.FC = () => {
             className="absolute inset-0 bg-slate-900/25 backdrop-blur-sm animate-fade-in"
             onClick={() => setNarrativeModalOpen(false)}
           />
-          <div ref={narrativeModalRef} className="relative w-full max-w-3xl z-10 bg-white rounded-2xl shadow-premium-lg border border-slate-200/60 overflow-hidden animate-scale-in">
+          {/* El modal se acota a 90vh (columna flex) y el área editable hace
+              scroll POR DENTRO (max-height + overflow-y:auto): sin esto, una
+              narrativa larga hacía crecer el modal más allá de la ventana y,
+              como el overlay es items-center y el body va con overflow:hidden,
+              el texto sobrante quedaba fuera de alcance — no había forma de
+              verlo ni desplazarse a él. */}
+          <div
+            ref={narrativeModalRef}
+            className="relative w-full max-w-3xl z-10 bg-white rounded-2xl shadow-premium-lg border border-slate-200/60 overflow-hidden animate-scale-in flex flex-col max-h-[90vh]"
+          >
 
             {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-xl bg-[#0F4C81]/8 border border-[#0F4C81]/15">
                   <Maximize2 size={16} className="text-[#0F4C81]" />
@@ -808,14 +984,22 @@ export const NewLaudo: React.FC = () => {
             </div>
 
             {/* Modal body */}
-            <div className="p-6">
+            <div className="p-6 flex-1 min-h-0 overflow-y-auto">
               <RichTextField
                 value={narrative}
                 onChange={setNarrative}
                 placeholder={t('laudo_narrative_placeholder')}
                 autoFocus
                 className="border border-slate-200 rounded-xl bg-slate-50/50 focus-within:border-[#0F4C81] focus-within:bg-white transition-colors overflow-hidden"
-                style={{ fontSize: '15px', lineHeight: 1.7, color: '#1F2937', padding: '14px 16px', minHeight: '55vh' }}
+                style={{
+                  fontSize: '15px',
+                  lineHeight: 1.7,
+                  color: '#1F2937',
+                  padding: '14px 16px',
+                  minHeight: '55vh',
+                  maxHeight: 'calc(90vh - 170px)',
+                  overflowY: 'auto',
+                }}
               />
             </div>
           </div>

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Print Laudo repro</title>
+    <style>
+      /* Modo "revelado" en pantalla normal: solo para reproducir/medir el
+         layout del laudo sin depender de @media print. No forma parte de la
+         app — es un harness de desarrollo. */
+      body.repro-reveal .print-area-laudo { display: block !important; background: #fff !important; position: relative !important; }
+      /* Replica EXACTA del bloque @media print de index.css (fuentes y
+         shaping de impresión) aplicada en pantalla: sin esto, el reflow de
+         impresión difiere de la medición y el bug de colisión no se ve. */
+      body.repro-reveal, body.repro-reveal * {
+        font-family: Arial, sans-serif !important;
+        font-feature-settings: normal !important;
+        -webkit-font-smoothing: antialiased !important;
+        text-rendering: optimizeLegibility !important;
+      }
+    </style>
+  </head>
+  <body class="repro-reveal print-laudo">
+    <div id="root"></div>
+    <script type="module" src="/src/dev-print.tsx"></script>
+  </body>
+</html>

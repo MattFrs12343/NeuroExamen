@@ -157,23 +157,14 @@ $rows = $stmt->fetchAll();
 
 /**
  * Logo de la clínica como data URI base64, listo para <img src="data:...">.
- * 1) El `logo` guardado en la BD (subido desde la UI), si existe.
- * 2) Para CLINICA SAUDE CAMPINAS, si no tiene logo propio, el archivo
- *    server-php/assets/logo-saude-campinas.png (logo original en disco).
- * Otras clínicas sin logo devuelven null.
+ * Delega TODO en la función compartida getLaudoLogoDataUri() (lib/laudoProfiles.php),
+ * así la resolución es UN SOLO lugar: logo en BD -> logo-*.png en disco por
+ * clinic_key() -> Campinas histórico. Sin logo propio devuelve null (clínica
+ * sin membrete), no se cae en ninguna marca de la plataforma.
  */
-$assetsDir = __DIR__ . '/../../assets/';
-
-$logoFor = function (string $clinicName, ?string $storedLogo) use ($assetsDir): ?string {
-    if ($storedLogo) return $storedLogo;
-    if (laudoClinicKey($clinicName) === 'clinicasaudecampinas') {
-        $file = $assetsDir . 'logo-saude-campinas.png';
-        if (file_exists($file)) {
-            $mime = mime_content_type($file) ?: 'image/png';
-            return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($file));
-        }
-    }
-    return null;
+$logoFor = function (string $clinicName, ?string $storedLogo) use ($pdo): ?string {
+    return getLaudoLogoDataUri($pdo, null, $clinicName)
+        ?? $storedLogo;
 };
 
 $result = array_map(function ($row) use ($logoFor) {

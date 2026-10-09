@@ -3,6 +3,8 @@ import { useApp } from '../context/AppContext';
 import { DOCTOR_NAME, DOCTOR_CRM, DOCTOR_ADDRESS } from '../lib/doctor';
 import { isoToBRDate, isoToBRDateTime } from '../lib/dates';
 import { findClinicProfile } from '../lib/clinic';
+import { RichText } from './RichText';
+import { isRichTextEmpty } from '../lib/richText';
 
 // ── Paleta del documento de referencia ───────────────────────────────────────
 // Negro/blanco puros con grises bajos: estética limpia y minimalista.
@@ -166,11 +168,16 @@ export const PrintAtestadoTemplate: React.FC = () => {
         </div>
 
         {/* ══ 6. OBSERVACIÓN ═══════════════════════════════════════════════ */}
-        {a.observation && (
+        {!isRichTextEmpty(a.observation) && (
           <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: `1px solid ${LINE}` }}>
             <p style={{ margin: 0, fontSize: '15px', color: INK, lineHeight: 1.3, textAlign: 'justify' }}>
-              <span style={{ fontWeight: 700 }}>Observação:</span> {a.observation}
+              <span style={{ fontWeight: 700 }}>Observação:</span>
             </p>
+            <RichText
+              tag="p"
+              style={{ margin: '6px 0 0 0', fontSize: '15px', color: INK, lineHeight: 1.3, textAlign: 'justify' }}
+              html={a.observation}
+            />
           </div>
         )}
 

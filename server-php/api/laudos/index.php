@@ -13,6 +13,7 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../middleware/cors.php';
 require_once __DIR__ . '/../../middleware/auth.php';
 require_once __DIR__ . '/../../lib/signing.php';
+require_once __DIR__ . '/../../lib/laudoConclusoes.php';
 
 setCorsHeaders();
 header('Content-Type: application/json');
@@ -25,6 +26,27 @@ $method = $_SERVER['REQUEST_METHOD'];
 $pathParts = explode('/', trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/'));
 $lastPart  = end($pathParts);
 $laudoId   = ($lastPart !== 'laudos' && $lastPart !== 'index.php') ? $lastPart : null;
+
+/**
+ * Snapshot de la lista de Conclusão Pericial tal como se vio al firmar.
+ *
+ * Se guarda completo (JSON) y no solo el id elegido para que un laudo firmado
+ * no cambie si después el médico edita o borra esa opción: el PDF es un
+ * documento legal y la verificación pública descarga ese mismo PDF. Mismo
+ * criterio que el snapshot del emisor (doctor/clínica).
+ *
+ * Acepta el array que manda el frontend o el JSON crudo (la opción elegida
+ * siempre manda la lista completa). Devuelve null si no hay lista — la
+ * sección no se imprime, igual que antes.
+ */
+function snapshotConclusaoOpcoes($opcoes): ?string {
+    if (is_string($opcoes)) {
+        $opcoes = json_decode($opcoes, true);
+    }
+    if (!is_array($opcoes) || $opcoes === []) return null;
+
+    return json_encode(laudo_conclusoes_parse(json_encode($opcoes)), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}
 
 function formatLaudo(array $row): array {
     return [
@@ -41,6 +63,7 @@ function formatLaudo(array $row): array {
         'cids'                  => $row['cids']                   ?: null,
         'diagnostico'           => $row['diagnostico']            ?: null,
         'conclusao'             => $row['conclusao']              ?: null,
+        'conclusaoOpcoes'       => laudo_conclusoes_parse($row['conclusao_opcoes'] ?? null),
         'afastamentoDias'       => $row['afastamento_dias']       !== null ? (int)$row['afastamento_dias'] : null,
         'observacoes'           => $row['observacoes'],
         'clinicName'            => $row['clinic_name']            ?: null,
@@ -96,11 +119,15 @@ if ($method === 'GET' && !$laudoId) {
 // POST /api/laudos
 // ------------------------------------------------------------------
 if ($method === 'POST') {
+    // El INSERT escribe la tabla del catálogo y la columna del snapshot: sin la
+    // migración esto sería un 500 de cuerpo vacío, sin mensaje.
+    laudo_conclusoes_require_schema($pdo);
+
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
     $fields = [
         'patientId', 'patientName', 'patientIdentityCard', 'patientBirthDate', 'patientPhone',
         'orgao', 'date', 'local', 'narrative', 'cids', 'diagnostico', 'conclusao',
-        'afastamentoDias', 'observacoes', 'clinicName', 'clinicAddress', 'clinicPhone',
+        'conclusaoOpcoes', 'afastamentoDias', 'observacoes', 'clinicName', 'clinicAddress', 'clinicPhone',
         'doctorName', 'doctorCrm', 'templateId',
     ];
     $data = [];
@@ -120,6 +147,11 @@ if ($method === 'POST') {
         exit;
     }
 
+    // Snapshot de la lista de conclusões — solo si se eligió alguna.
+    $opcoesJson = empty($data['conclusao'])
+        ? null
+        : snapshotConclusaoOpcoes($data['conclusaoOpcoes'] ?? null);
+
     $pdo->beginTransaction();
     try {
         $pdo->exec("INSERT INTO laudo_counter (year) VALUES (YEAR(CURDATE()))
@@ -131,10 +163,10 @@ if ($method === 'POST') {
             'INSERT INTO laudos (
                 id, user_id, patient_id, patient_name, patient_identity_card,
                 patient_birth_date, patient_phone, orgao, date, local, narrative,
-                cids, diagnostico, conclusao, afastamento_dias, observacoes,
+                cids, diagnostico, conclusao, conclusao_opcoes, afastamento_dias, observacoes,
                 clinic_name, clinic_address, clinic_phone,
                 doctor_name, doctor_crm, template_id
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $newId, $userId,
@@ -150,6 +182,7 @@ if ($method === 'POST') {
             $data['cids'],
             $data['diagnostico'],
             $data['conclusao'],
+            $opcoesJson,
             $data['afastamentoDias'] !== null && $data['afastamentoDias'] !== '' ? (int)$data['afastamentoDias'] : null,
             $data['observacoes'],
             $data['clinicName'],
@@ -188,11 +221,13 @@ if ($method === 'POST') {
 // PUT /api/laudos/:id
 // ------------------------------------------------------------------
 if ($method === 'PUT' && $laudoId) {
+    laudo_conclusoes_require_schema($pdo);
+
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
     $fields = [
         'patientId', 'patientName', 'patientIdentityCard', 'patientBirthDate', 'patientPhone',
         'orgao', 'date', 'local', 'narrative', 'cids', 'diagnostico', 'conclusao',
-        'afastamentoDias', 'observacoes', 'clinicName', 'clinicAddress', 'clinicPhone',
+        'conclusaoOpcoes', 'afastamentoDias', 'observacoes', 'clinicName', 'clinicAddress', 'clinicPhone',
         'doctorName', 'doctorCrm', 'templateId',
     ];
     $data = [];
@@ -212,12 +247,16 @@ if ($method === 'PUT' && $laudoId) {
         exit;
     }
 
+    $opcoesJson = empty($data['conclusao'])
+        ? null
+        : snapshotConclusaoOpcoes($data['conclusaoOpcoes'] ?? null);
+
     $upd = $pdo->prepare(
         'UPDATE laudos SET
             patient_id=?, patient_name=?, patient_identity_card=?, patient_birth_date=?,
             patient_phone=?, orgao=?, date=?, local=?, narrative=?, cids=?, diagnostico=?,
-            conclusao=?, afastamento_dias=?, observacoes=?, clinic_name=?, clinic_address=?,
-            clinic_phone=?, doctor_name=?, doctor_crm=?, template_id=?
+            conclusao=?, conclusao_opcoes=?, afastamento_dias=?, observacoes=?,
+            clinic_name=?, clinic_address=?, clinic_phone=?, doctor_name=?, doctor_crm=?, template_id=?
          WHERE id=?'
     );
     $upd->execute([
@@ -233,6 +272,7 @@ if ($method === 'PUT' && $laudoId) {
         $data['cids'],
         $data['diagnostico'],
         $data['conclusao'],
+        $opcoesJson,
         $data['afastamentoDias'] !== null && $data['afastamentoDias'] !== '' ? (int)$data['afastamentoDias'] : null,
         $data['observacoes'],
         $data['clinicName'],

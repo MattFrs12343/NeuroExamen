@@ -13,6 +13,8 @@ import { WhatsAppIcon } from '../components/icons/WhatsAppIcon';
 import { DetailDrawer } from '../components/DetailDrawer';
 import { PrintOptionsModal } from '../components/PrintOptionsModal';
 import { cn, getErrorMessage, hasIdentity } from '../lib/utils';
+import { RichText } from '../components/RichText';
+import { isRichTextEmpty } from '../lib/richText';
 import { isoToBRDate, isoToBRDateTime } from '../lib/dates';
 import { printSignedPdf } from '../lib/signedPdf';
 import { openWhatsApp, buildDocumentWhatsAppMessage, stripDoctorPrefix } from '../lib/whatsapp';
@@ -479,11 +481,11 @@ export const AtestadosList: React.FC = () => {
                 </div>
               )}
 
-              {selectedAtest.observation && (
+              {!isRichTextEmpty(selectedAtest.observation) && (
                 <div>
                   <p className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-3">{t('atestado_observation')}</p>
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                    <p className="text-sm text-slate-700">{selectedAtest.observation}</p>
+                    <RichText tag="p" className="text-sm text-slate-700" html={selectedAtest.observation} />
                   </div>
                 </div>
               )}

@@ -264,10 +264,10 @@ function generateVerificationInfo(PDO $pdo, string $table, string $kind, string 
  * oficial del ITI para quien quiera ese nivel extra de certeza.
  * Devuelve el Y final (mm) alcanzado por la tarjeta.
  */
-function drawQrVerificationBox(TCPDF $pdf, float $x, float $y, float $w, string $verifyUrl, string $token): float {
+function drawQrVerificationBox(TCPDF $pdf, float $x, float $y, float $w, string $verifyUrl, string $token, ?string $accessCode = null): float {
     $pad    = 3.5;
     $innerW = $w - 2 * $pad;
-    $cardH  = 50;
+    $cardH  = 55;
 
     $pdf->SetFillColor(247, 250, 252);
     $pdf->SetDrawColor(203, 213, 225);
@@ -276,7 +276,7 @@ function drawQrVerificationBox(TCPDF $pdf, float $x, float $y, float $w, string 
     $curY = $y + $pad + 1.5;
     $pdf->SetFont('freesans', 'B', 7);
     $pdf->SetTextColor(15, 76, 129);
-    $pdf->MultiCell($innerW, 0, 'Documento emitido via NeuroExámenes', 0, 'C', false, 1, $x + $pad, $curY);
+    $pdf->MultiCell($innerW, 0, 'Documento emitido por Juan Marcelo Cabello Merida (CRM 161792 SP)', 0, 'C', false, 1, $x + $pad, $curY);
     $curY = $pdf->GetY() + 1;
 
     $pdf->SetFont('freesans', '', 5.8);
@@ -292,6 +292,16 @@ function drawQrVerificationBox(TCPDF $pdf, float $x, float $y, float $w, string 
     $pdf->SetFont('freesans', 'B', 6.5);
     $pdf->SetTextColor(15, 76, 129);
     $pdf->MultiCell($innerW, 0, 'Código: ' . $token, 0, 'C', false, 1, $x + $pad, $curY);
+    $curY = $pdf->GetY() + 1;
+
+    // Código de acesso (4 dígitos) — misma línea que el card del navegador
+    // (VerificationQrCard.tsx): quien recibe el papel sin el WhatsApp puede
+    // igual abrir la vista del documento en la página de verificación.
+    if ($accessCode !== null && trim($accessCode) !== '') {
+        $pdf->SetFont('freesans', 'B', 6.5);
+        $pdf->SetTextColor(15, 76, 129);
+        $pdf->MultiCell($innerW, 0, 'Código de acesso: ' . $accessCode, 0, 'C', false, 1, $x + $pad, $curY);
+    }
 
     // Reset: sin esto, el contenido que se escribe después (el cuerpo del
     // atestado) hereda "negrita" — TCPDF mantiene la fuente activa entre
@@ -315,8 +325,16 @@ function drawQrVerificationBox(TCPDF $pdf, float $x, float $y, float $w, string 
  * api/laudos/signed-pdf.php. No cambiar el default acá sin confirmar que
  * es para TODOS los documentos firmados (Atestados/Recetas/Encaminhamentos/
  * Receituário/Pedidos también usan esta misma función).
+ *
+ * $signedAt: fecha/hora "dd/mm/YYYY HH:MM:SS" ya calculada por el caller.
+ * null (default) = la de ahora, idéntico al comportamiento anterior para
+ * todos los demás documentos. Laudos lo pasa explícito porque la misma
+ * fecha se imprime en TODAS las hojas (pie mini de las hojas 1..N-1 y pie
+ * completo de la última) y tienen que ser letra por letra iguales: sin un
+ * valor único, dos llamadas separadas por milisegundos pueden caer en
+ * segundos distintos.
  */
-function drawSignatureFooter(TCPDF $pdf, string $signerName, ?string $signerDocument, ?string $documentLabel, float $fontPt = 7.0, float $hrMarginBottomMm = 2.0, bool $dateOnOwnLine = false): void {
+function drawSignatureFooter(TCPDF $pdf, string $signerName, ?string $signerDocument, ?string $documentLabel, float $fontPt = 7.0, float $hrMarginBottomMm = 2.0, bool $dateOnOwnLine = false, string $crm = 'CRM 161792 SP', ?string $signedAt = null): void {
     $pdf->Ln(2);
     $pdf->SetFont('freesans', '', $fontPt);
     $pdf->writeHTML('<hr style="border-top:0.3mm solid #CBD5E1;margin-bottom:' . $hrMarginBottomMm . 'mm;" />', true, false, true, false, '');
@@ -324,13 +342,21 @@ function drawSignatureFooter(TCPDF $pdf, string $signerName, ?string $signerDocu
     $esc        = fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
     $signerLine = '<b>' . $esc($signerName) . '</b>';
     if ($signerDocument) {
-        $signerLine .= ' (' . $esc($documentLabel ?? 'Documento') . ' ' . $esc($signerDocument) . ')';
+        $signerLine .= ' (' . $esc($documentLabel ?? 'Documento') . ' ' . $esc($signerDocument);
+    } else {
+        $signerLine .= ' (';
     }
+    // CRM del médico, junto a la identidad del firmante — viene por default acá
+    // para que TODOS los documentos firmados (Pedidos/Recetas/Receituário/
+    // Encaminhamentos/Laudos/Atestados/Fórmulas pasan por drawSignatureFooter)
+    // lo muestren sin tocar cada endpoint.
+    $signerLine .= ' - ' . $esc($crm) . ')';
 
     $dateSep = $dateOnOwnLine ? '<br/>' : ' ';
+    $stamp   = $signedAt ?? date('d/m/Y H:i:s');
     $html = '<p style="text-align:center;margin:0;font-size:' . $fontPt . 'pt;color:#6B7280;line-height:1.3;">'
           . 'Assinado digitalmente conforme ICP-Brasil (MP 2.200-2/2001) por ' . $signerLine
-          . $dateSep . 'em ' . date('d/m/Y H:i:s') . '.<br/>'
+          . $dateSep . 'em ' . $stamp . '.<br/>'
           . 'Verifique a autenticidade e integridade do documento em <b style="color:#0F4C81;">validar.iti.gov.br</b>.</p>';
 
     $pdf->writeHTML($html, true, false, true, false, '');

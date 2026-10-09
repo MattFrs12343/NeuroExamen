@@ -175,13 +175,14 @@
   body.print-laudo .print-area-laudo {
     display: block !important; position: static !important; background: white !important;
   }
-  .print-area > div { break-inside: avoid; }
-  /* El laudo es un flujo de altura medida (N×297mm): su contenedor SÍ debe
-     partirse entre páginas, de lo contrario una segunda hoja quedaría vacía
-     o la firma caería mal. Además debe ser relativo para anclar las marcas
-     de agua absolutas (una por página, top = i×297mm). */
+  .print-area > div { break-inside: avoid; orphans: 2; widows: 2; }
+  /* El laudo se imprime en HOJAS explícitas (una por página física, cada una
+     de 297mm con su propio margen 16/18mm y una ventana que recorta su tramo
+     del contenido vía transform+overflow:hidden). Cada hoja fuerza su prop
+     page-break por estilo inline; las marcas de agua y el encabezado de las
+     páginas 2+ son hijos absolutos de cada hoja, así que solo hace falta
+     anclar el contenedor como relativo. */
   body.print-laudo .print-area-laudo { position: relative !important; }
-  body.print-laudo .print-area-laudo > div { break-inside: auto; break-after: auto; }
   .no-print { display: none !important; }
 }
 

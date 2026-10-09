@@ -132,6 +132,21 @@ export const RichTextField: React.FC<RichTextFieldProps> = ({
     }
   };
 
+  // En teclados táctiles/virtuales (tablet) Enter no siempre llega como un
+  // keydown normal con key:'Enter' — a veces solo dispara beforeinput con
+  // inputType:'insertParagraph', que handleKeyDown no detecta. Sin este
+  // interceptor, el navegador cae en su comportamiento nativo y envuelve la
+  // línea en <div> en vez de <br>, lo que richTextToHtml no reconoce y
+  // termina mostrándose como texto literal ("<div>") en pantalla e impresión.
+  const handleBeforeInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const inputType = (e.nativeEvent as InputEvent).inputType;
+    if (inputType === 'insertParagraph') {
+      e.preventDefault();
+      document.execCommand('insertLineBreak');
+      syncFromDom();
+    }
+  };
+
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
     e.preventDefault();
     const text = e.clipboardData.getData('text/plain');
@@ -176,6 +191,7 @@ export const RichTextField: React.FC<RichTextFieldProps> = ({
         data-empty={isEmpty ? 'true' : 'false'}
         onInput={syncFromDom}
         onKeyDown={handleKeyDown}
+        onBeforeInput={handleBeforeInput}
         onPaste={handlePaste}
         onFocus={onFocus}
         onBlur={onBlur}

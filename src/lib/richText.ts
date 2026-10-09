@@ -51,6 +51,30 @@ export const richTextToHtml = (value: string | null | undefined): string => {
   //    codificación (el editor emite '&amp;' para '&', etc.).
   let s = decodeEntities(raw);
 
+  // 0.5) Normaliza <div>/<p> de contentEditable a saltos de línea reales.
+  //      Chrome envuelve cada línea en <div> (en vez de <br>) cuando Enter
+  //      llega como evento de composición y no lo intercepta el editor —
+  //      pasa en teclados táctiles/virtuales (ver rich-text-field.tsx). Si no
+  //      se normaliza acá, el paso 1 los escapa y quedan visibles como texto
+  //      ("<div>...</div>") en vez de como salto de línea. Se reemplaza tanto
+  //      la apertura como el cierre por \n (el límite real está en ambos
+  //      lados: "a<div>b</div>" son DOS líneas, "a" y "b") y se colapsan los
+  //      \n dobles que deja la adyacencia cierre+apertura entre divs.
+  s = s
+    .replace(/<\/?(?:div|p)(?:\s[^>]*)?>/gi, '\n')
+    .replace(/\n{2,}/g, '\n')
+    .replace(/^\n+/, '');
+
+  // 0.75) Descarta por COMPLETO cualquier etiqueta no permitida (con o sin
+  //      atributos). Antes se escapaban y quedaban VISIBLES como texto literal
+  //      ("<span style=...>") en pantalla e impresión — el normalizador de
+  //      div/p solo cubría un caso. Con esto, el markup sobrante se elimina y
+  //      solo se conserva su contenido de texto. Se preservan b/u/br/strong
+  //      (el paso 2 convierte strong → b).
+  s = s.replace(/<\/?[a-zA-Z][^>]*>/g, m =>
+    /^<\/?(b|u|br|strong)(\s*\/?)>$/i.test(m) ? m : '',
+  );
+
   // 1) Escapa TODO (incluidos los ángulos de etiquetas).
   s = s
     .replace(/&/g, '&amp;')

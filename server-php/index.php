@@ -52,6 +52,11 @@ if ($uri === '/laudo-clinics') {
     require __DIR__ . '/api/laudo-clinics/index.php'; exit;
 }
 
+// ── Catálogo de Conclusão Pericial del Laudo (agregar/editar/eliminar) ────────
+if ($uri === '/laudo-conclusoes' || preg_match('#^/laudo-conclusoes/[^/]+$#', $uri)) {
+    require __DIR__ . '/api/laudo-conclusoes/index.php'; exit;
+}
+
 // ── Estudios personalizados ──────────────────────────────────────────────────
 if ($uri === '/custom-exams' || preg_match('#^/custom-exams/[^/]+$#', $uri)) {
     require __DIR__ . '/api/custom-exams/index.php'; exit;

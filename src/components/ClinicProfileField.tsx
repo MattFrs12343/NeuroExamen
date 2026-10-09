@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import type { ClinicProfile } from '../types';
-import { Building2, Plus, Check, X } from 'lucide-react';
+import { Building2, Plus, Check, X, ChevronDown } from 'lucide-react';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
-import { getErrorMessage } from '../lib/utils';
+import { getErrorMessage, cn } from '../lib/utils';
 
 interface ClinicProfileFieldProps {
   options: ClinicProfile[];
@@ -19,13 +19,62 @@ export const ClinicProfileField: React.FC<ClinicProfileFieldProps> = ({ options,
   const { t } = useTranslation();
   const { addRecetaClinic } = useApp();
 
+  const [open, setOpen] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [activeIdx, setActiveIdx] = useState(-1);
+
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+
+  const items = [{ name: '', label: t('receta_clinic_select_placeholder') }, ...options.map(o => ({ name: o.name, label: o.name }))];
+  const selectedIdx = items.findIndex(i => i.name === value);
 
   const setField = (key: keyof ReturnType<typeof emptyForm>, val: string) => setForm(f => ({ ...f, [key]: val }));
 
   const fieldCls = 'h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0F4C81]/50';
+
+  // Cierra el desplegable al hacer click afuera.
+  useEffect(() => {
+    if (!open) return;
+    const fn = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', fn);
+    return () => document.removeEventListener('mousedown', fn);
+  }, [open]);
+
+  // Al abrir, deja el valor actual a la vista. El índice teclado se arma en el
+  // handler del botón (no acá) para no setear state dentro del efecto.
+  useEffect(() => {
+    if (!open) return;
+    const el = listRef.current?.children[selectedIdx] as HTMLElement | undefined;
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const openList = () => { setActiveIdx(selectedIdx); setOpen(true); };
+  const toggleList = () => (open ? setOpen(false) : openList());
+
+  const pick = (name: string) => { onValueChange(name); setOpen(false); };
+
+  const onListKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') { e.preventDefault(); setOpen(false); return; }
+    if (e.key === 'Tab') { setOpen(false); return; }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const dir = e.key === 'ArrowDown' ? 1 : -1;
+      const next = Math.min(items.length - 1, Math.max(0, (activeIdx < 0 ? selectedIdx : activeIdx) + dir));
+      setActiveIdx(next);
+      (listRef.current?.children[next] as HTMLElement | undefined)?.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (activeIdx >= 0) pick(items[activeIdx].name);
+    }
+  };
+
 
   const handleAdd = async () => {
     const name = form.name.trim().toLocaleUpperCase();
@@ -51,18 +100,65 @@ export const ClinicProfileField: React.FC<ClinicProfileFieldProps> = ({ options,
   return (
     <>
       <div className="flex gap-2">
-        <div className="relative flex-1">
+        {/* Desplegable propio (no <select> nativo): el navegador voltea la
+            lista hacia ARRIBA cuando las 17 clínicas no caben debajo del
+            cursor, y en el paso 1 de Laudo quedaba tapaando el formulario.
+            Acá la lista siempre se dibuja HACIA ABAJO, con scroll interno. */}
+        <div className="relative flex-1" ref={wrapRef}>
           <Building2 size={16} strokeWidth={1.75} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 z-10 pointer-events-none" />
-          <select
-            value={value}
-            onChange={e => onValueChange(e.target.value)}
-            className="flex h-11 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0F4C81]/20 focus:border-[#0F4C81]/50 focus:bg-white cursor-pointer transition-all"
+          <button
+            type="button"
+            onClick={toggleList}
+            onKeyDown={e => { if (!open && (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openList(); } }}
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            className={cn(
+              'flex h-11 w-full items-center rounded-xl border pl-10 pr-9 text-left text-sm transition-all cursor-pointer',
+              open
+                ? 'bg-white border-[#0F4C81]/50 ring-2 ring-[#0F4C81]/20'
+                : 'bg-slate-50/50 border-slate-200 hover:bg-white hover:border-[#0F4C81]/40'
+            )}
           >
-            <option value="">{t('receta_clinic_select_placeholder')}</option>
-            {options.map(c => (
-              <option key={c.name} value={c.name}>{c.name}</option>
-            ))}
-          </select>
+            <span className={cn('truncate', value ? 'text-slate-800' : 'text-slate-400')}>
+              {value || t('receta_clinic_select_placeholder')}
+            </span>
+            <ChevronDown size={16} strokeWidth={2}
+              className={cn('absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-transform no-print', open && 'rotate-180')} />
+          </button>
+
+          {open && (
+            <ul
+              ref={listRef}
+              role="listbox"
+              tabIndex={-1}
+              onKeyDown={onListKeyDown}
+              className="absolute left-0 right-0 top-full mt-1 z-50 max-h-72 overflow-y-auto overscroll-contain py-1 bg-white border border-slate-200 rounded-xl shadow-premium-lg animate-fade-in focus:outline-none"
+            >
+              {items.map((it, i) => {
+                const isSel = it.name === value;
+                return (
+                  <li key={it.name || '__placeholder'}>
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={isSel}
+                      onMouseEnter={() => setActiveIdx(i)}
+                      onClick={() => pick(it.name)}
+                      className={cn(
+                        'w-full flex items-center gap-2.5 px-4 py-2.5 text-left transition-colors',
+                        i === activeIdx ? 'bg-slate-50' : 'bg-transparent',
+                        it.name ? 'text-slate-700 text-sm' : 'text-slate-400 text-sm italic'
+                      )}
+                    >
+                      <Building2 size={14} strokeWidth={1.75} className={cn('shrink-0', it.name ? 'text-[#0F4C81]/50' : 'text-slate-300')} />
+                      <span className="truncate flex-1">{it.label}</span>
+                      {isSel && <Check size={14} strokeWidth={2.5} className="shrink-0 text-[#0F4C81]" />}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
 
         <button type="button"

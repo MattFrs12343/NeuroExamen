@@ -515,7 +515,7 @@ export const NewEncaminhamento: React.FC = () => {
                           <div className={`w-1.5 h-1.5 rounded-full ${ui.dot} mt-1.5 shrink-0`} />
                           <p className="text-xs text-slate-700 leading-snug flex-1">{spec?.name ?? sid}</p>
                           <button type="button" onClick={() => toggleSpecialist(sid)}
-                            className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                            className="text-slate-300 hover:text-red-500 transition-colors shrink-0">
                             <X size={12} />
                           </button>
                         </div>

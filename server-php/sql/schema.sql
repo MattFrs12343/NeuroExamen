@@ -300,6 +300,7 @@ INSERT IGNORE INTO exams (id, category, name) VALUES
   ('cog-02',     'cat_cog',     'exam_cog_02'),
   ('cog-03',     'cat_cog',     'exam_cog_03'),
   ('din-01',     'cat_din',     'exam_din_01'),
+  ('din-02',     'cat_din',     'exam_din_02'),
   ('rm-01',      'cat_rm',      'exam_rm_01'),
   ('rm-02',      'cat_rm',      'exam_rm_02'),
   ('rm-03',      'cat_rm',      'exam_rm_03'),

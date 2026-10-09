@@ -11,6 +11,7 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../middleware/cors.php';
 require_once __DIR__ . '/../../middleware/auth.php';
 require_once __DIR__ . '/../../lib/signing.php';
+require_once __DIR__ . '/../../lib/richText.php';
 
 setCorsHeaders();
 
@@ -184,9 +185,9 @@ if ($restDays) {
     $htmlBody .= '<p style="font-size:11pt;line-height:1.35;margin-top:1.5mm;color:' . $INK . ';">' . $sentence2 . '</p>';
 }
 
-if ($a['observation']) {
+if (!isRichTextEmpty($a['observation'])) {
     $htmlBody .= '<p style="font-size:7pt;font-weight:bold;color:' . $FAINT . ';letter-spacing:0.03em;margin:4mm 0 0 0;">OBSERVAÇÃO</p>';
-    $htmlBody .= '<p style="font-size:11pt;line-height:1.35;margin:1mm 0 0 0;color:' . $INK . ';">' . $esc($a['observation']) . '</p>';
+    $htmlBody .= '<p style="font-size:11pt;line-height:1.35;margin:1mm 0 0 0;color:' . $INK . ';">' . richTextToHtml($a['observation']) . '</p>';
 }
 
 // Bloque del médico — sólo esto va en el pie (más la línea legal que
@@ -285,7 +286,7 @@ $pdf->writeHTML($htmlPatientRest, true, false, true, false, '');
 $yAfterLeft = $pdf->GetY();
 $pdf->SetRightMargin($rightMargin);
 
-$yAfterRight = drawQrVerificationBox($pdf, $qrColX, $yCols, $qrColW, $a['qr_content'], $a['token']);
+$yAfterRight = drawQrVerificationBox($pdf, $qrColX, $yCols, $qrColW, $a['qr_content'], $a['token'], $a['access_code'] ?? null);
 
 // Divisoria entre el encabezado (paciente + QR) y el título — marca dónde
 // termina un bloque y empieza el otro, en vez de que quede todo flotando
@@ -309,6 +310,16 @@ $pdf->writeHTML($htmlBody, true, false, true, false, '');
 // automático (pageHeight - 20mm), así no se corta a una segunda hoja.
 $footerZoneH = 65;
 $footerY     = $pdf->getPageHeight() - $footerZoneH;
+// Guarda contra derrames del pie (mismo patrón que Laudos): el bloque del
+// médico + la línea legal ocupa ~45-48mm DIBUJADO con writeHTML(), que
+// activa el autopagebreak de TCPDF. Si el cuerpo terminó tan abajo que el
+// pie no entra antes del margen inferior automático (297 − 20), se pasa a
+// una hoja nueva ANTES de dibujarlo — el bloque completo va junto en vez de
+// partirse (la línea legal saltando sola a una hoja sobrante).
+$footerFitMm = 52;
+if ($pdf->GetY() + 8 + $footerFitMm > $pdf->getPageHeight() - 20) {
+    $pdf->AddPage();
+}
 $pdf->SetY(max($pdf->GetY() + 8, $footerY));
 
 $pdf->writeHTML($htmlDoctor, true, false, true, false, '');

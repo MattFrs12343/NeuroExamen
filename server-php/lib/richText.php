@@ -33,6 +33,23 @@ function richTextToHtml($value): string
     // 0) Decodifica entidades: evita el doble escape del editor.
     $s = decodeHtmlEntities($raw);
 
+    // 0.5) Normaliza <div>/<p> de contentEditable a saltos de línea reales —
+    //      espejo del mismo paso en src/lib/richText.ts (ver ahí el porqué,
+    //      incluida la razón de reemplazar apertura Y cierre por \n).
+    $s = preg_replace('~</?(?:div|p)(?:\s[^>]*)?>~i', "\n", $s);
+    $s = preg_replace('~\n{2,}~', "\n", $s);
+    $s = preg_replace('~^\n+~', '', $s);
+
+    // 0.75) Se descartan por COMPLETO las etiquetas no permitidas (con o sin
+    //      atributos). Antes quedaban escapadas y se veían como texto literal
+    //      ("<span style=...>") en pantalla y en el PDF firmado — el
+    //      normalizador de div/p solo cubría un caso. Ahora el markup sobrante
+    //      se elimina y se conserva solo su texto. Se preservan b/u/br/strong
+    //      (el paso 2 convierte strong → b).
+    $s = preg_replace_callback('~</?[a-zA-Z][^>]*>~', function ($m) {
+        return preg_match('~^</?(b|u|br|strong)(\s*/)?>$~i', $m[0]) === 1 ? $m[0] : '';
+    }, $s);
+
     // 1) Escapa TODO (incluidos los ángulos de etiquetas).
     $s = str_replace(['&', '<', '>'], ['&amp;', '&lt;', '&gt;'], $s);
 

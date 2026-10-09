@@ -649,7 +649,7 @@ export const NewReceta: React.FC = () => {
                         <div className="w-1.5 h-1.5 rounded-full bg-[#0F4C81] mt-1.5 shrink-0" />
                         <p className="text-xs text-slate-700 leading-snug flex-1 line-clamp-2">{richTextToPlain(m.text)}</p>
                         <button type="button" onClick={() => handleRemoveLine(m.id)}
-                          className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                          className="text-slate-300 hover:text-red-500 transition-colors shrink-0">
                           <X size={12} />
                         </button>
                       </div>
@@ -702,8 +702,12 @@ export const NewReceta: React.FC = () => {
           className="absolute inset-0 bg-slate-900/25 backdrop-blur-sm animate-fade-in"
           onClick={() => setDraftModalOpen(false)}
         />
-        <div className="relative w-full max-w-2xl z-10 bg-white rounded-2xl shadow-premium-lg border border-slate-200/60 overflow-hidden animate-scale-in">
-          <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+        {/* Acotado a 90vh con el editor haciendo scroll por dentro: sin esto un
+            borrador largo empujaba el modal fuera de la ventana y, con el body
+            en overflow:hidden, no había forma de llegar al texto. El body NO
+            lleva overflow para no recortar el desplegable de medicamentos. */}
+        <div className="relative w-full max-w-2xl z-10 bg-white rounded-2xl shadow-premium-lg border border-slate-200/60 overflow-hidden animate-scale-in flex flex-col max-h-[90vh]">
+          <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
             <div className="flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-100">
                 <Pill size={16} className="text-emerald-600" />
@@ -720,7 +724,7 @@ export const NewReceta: React.FC = () => {
               <X size={16} />
             </button>
           </div>
-          <div className="p-6">
+          <div className="p-6 flex-1 min-h-0">
             <div className="relative">
               <RichTextField
                 value={draft.text}
@@ -729,7 +733,19 @@ export const NewReceta: React.FC = () => {
                 placeholder={t('receta_med_paragraph_placeholder')}
                 autoFocus
                 className="border border-slate-200 rounded-xl bg-slate-50/50 focus-within:border-[#0F4C81] focus-within:bg-white transition-colors"
-                style={{ fontSize: '15px', lineHeight: 1.7, color: '#1F2937', padding: '14px 16px', minHeight: '40vh' }}
+                style={{
+                  fontSize: '15px',
+                  lineHeight: 1.7,
+                  color: '#1F2937',
+                  padding: '14px 16px',
+                  minHeight: '40vh',
+                  // El desplegable de medicamentos se ancla DEBAJO del editor,
+                  // así que aquí se reserva además su alto (≈380px de cabecera
+                  // + toolbar + padding + el propio desplegable) para que no
+                  // lo recorte el overflow-hidden de la tarjeta.
+                  maxHeight: 'max(40vh, calc(90vh - 380px))',
+                  overflowY: 'auto',
+                }}
               />
               {showMedDrop && medSuggestions.length > 0 && (
                 <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-premium-lg z-50 overflow-hidden">

@@ -29,6 +29,7 @@ export const INITIAL_EXAMS: Exam[] = [
 
   // ── Dinamómetro ───────────────────────────────────────────────────────────
   { id: 'din-01', category: 'cat_din', name: 'exam_din_01' },
+  { id: 'din-02', category: 'cat_din', name: 'exam_din_02' },
 
   // ── Imágenes por resonancia magnética computarizada ───────────────────────
   { id: 'rm-01', category: 'cat_rm', name: 'exam_rm_01' },

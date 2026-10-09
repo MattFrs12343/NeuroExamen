@@ -1,0 +1,308 @@
+{
+  "long-p1-screen.png": {
+    "px": [
+      794,
+      1123
+    ],
+    "heightMm": 297.1,
+    "bandsCount": 30,
+    "headerBandRows": [],
+    "topVisibleBandMm": [
+      17.2,
+      29.9
+    ],
+    "bottomVisibleBandMm": [
+      267.76,
+      270.94
+    ]
+  },
+  "long-p2-screen.png": {
+    "px": [
+      794,
+      1124
+    ],
+    "heightMm": 297.4,
+    "bandsCount": 35,
+    "headerBandRows": [
+      [
+        3.7,
+        6.35
+      ],
+      [
+        9.79,
+        9.79
+      ]
+    ],
+    "topVisibleBandMm": [
+      3.7,
+      6.35
+    ],
+    "bottomVisibleBandMm": [
+      262.73,
+      265.91
+    ]
+  },
+  "long-p3-screen.png": {
+    "px": [
+      794,
+      1123
+    ],
+    "heightMm": 297.1,
+    "bandsCount": 22,
+    "headerBandRows": [
+      [
+        3.44,
+        6.09
+      ],
+      [
+        9.79,
+        9.79
+      ]
+    ],
+    "topVisibleBandMm": [
+      3.44,
+      6.09
+    ],
+    "bottomVisibleBandMm": [
+      273.32,
+      275.43
+    ]
+  },
+  "mid-p1-screen.png": {
+    "px": [
+      794,
+      1123
+    ],
+    "heightMm": 297.1,
+    "bandsCount": 14,
+    "headerBandRows": [],
+    "topVisibleBandMm": [
+      17.2,
+      29.9
+    ],
+    "bottomVisibleBandMm": [
+      171.45,
+      181.24
+    ]
+  },
+  "mid-p2-screen.png": {
+    "px": [
+      794,
+      1124
+    ],
+    "heightMm": 297.4,
+    "bandsCount": 36,
+    "headerBandRows": [
+      [
+        3.7,
+        6.35
+      ],
+      [
+        9.79,
+        9.79
+      ]
+    ],
+    "topVisibleBandMm": [
+      3.7,
+      6.35
+    ],
+    "bottomVisibleBandMm": [
+      268.02,
+      271.2
+    ]
+  },
+  "mid-p3-screen.png": {
+    "px": [
+      794,
+      1123
+    ],
+    "heightMm": 297.1,
+    "bandsCount": 18,
+    "headerBandRows": [
+      [
+        3.44,
+        6.09
+      ],
+      [
+        9.79,
+        9.79
+      ]
+    ],
+    "topVisibleBandMm": [
+      3.44,
+      6.09
+    ],
+    "bottomVisibleBandMm": [
+      273.32,
+      275.43
+    ]
+  },
+  "short-p1-screen.png": {
+    "px": [
+      794,
+      1123
+    ],
+    "heightMm": 297.1,
+    "bandsCount": 18,
+    "headerBandRows": [],
+    "topVisibleBandMm": [
+      17.2,
+      29.9
+    ],
+    "bottomVisibleBandMm": [
+      212.99,
+      216.17
+    ]
+  },
+  "short-p2-screen.png": {
+    "px": [
+      794,
+      1124
+    ],
+    "heightMm": 297.4,
+    "bandsCount": 15,
+    "headerBandRows": [
+      [
+        3.7,
+        6.35
+      ],
+      [
+        9.79,
+        9.79
+      ]
+    ],
+    "topVisibleBandMm": [
+      3.7,
+      6.35
+    ],
+    "bottomVisibleBandMm": [
+      273.32,
+      275.43
+    ]
+  },
+  "xl-p1-screen.png": {
+    "px": [
+      794,
+      1123
+    ],
+    "heightMm": 297.1,
+    "bandsCount": 30,
+    "headerBandRows": [],
+    "topVisibleBandMm": [
+      17.2,
+      29.9
+    ],
+    "bottomVisibleBandMm": [
+      267.76,
+      270.94
+    ]
+  },
+  "xl-p2-screen.png": {
+    "px": [
+      794,
+      1124
+    ],
+    "heightMm": 297.4,
+    "bandsCount": 40,
+    "headerBandRows": [
+      [
+        3.7,
+        6.35
+      ],
+      [
+        9.79,
+        9.79
+      ]
+    ],
+    "topVisibleBandMm": [
+      3.7,
+      6.35
+    ],
+    "bottomVisibleBandMm": [
+      267.5,
+      270.67
+    ]
+  },
+  "xl-p3-screen.png": {
+    "px": [
+      794,
+      1123
+    ],
+    "heightMm": 297.1,
+    "bandsCount": 40,
+    "headerBandRows": [
+      [
+        3.44,
+        6.09
+      ],
+      [
+        9.79,
+        9.79
+      ]
+    ],
+    "topVisibleBandMm": [
+      3.44,
+      6.09
+    ],
+    "bottomVisibleBandMm": [
+      267.23,
+      270.14
+    ]
+  },
+  "xl-p4-screen.png": {
+    "px": [
+      794,
+      1124
+    ],
+    "heightMm": 297.4,
+    "bandsCount": 29,
+    "headerBandRows": [
+      [
+        3.7,
+        6.35
+      ],
+      [
+        9.79,
+        9.79
+      ]
+    ],
+    "topVisibleBandMm": [
+      3.7,
+      6.35
+    ],
+    "bottomVisibleBandMm": [
+      273.32,
+      275.43
+    ]
+  },
+  "xl-p5-screen.png": {
+    "px": [
+      794,
+      1123
+    ],
+    "heightMm": 297.1,
+    "bandsCount": 33,
+    "headerBandRows": [
+      [
+        2.91,
+        3.18
+      ],
+      [
+        3.7,
+        6.09
+      ],
+      [
+        9.79,
+        9.79
+      ]
+    ],
+    "topVisibleBandMm": [
+      2.91,
+      3.18
+    ],
+    "bottomVisibleBandMm": [
+      273.32,
+      275.43
+    ]
+  }
+}
