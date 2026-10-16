@@ -28,14 +28,17 @@ if ($method === 'POST') {
         exit;
     }
 
+    // Solo se pisan los campos que vienen en el body. Esto permite editar
+    // UN campo (ej: la dirección) desde la UI sin borrar los otros datos
+    // (secretaria/sistema/teléfono/CNPJ) que la clínica ya tenía guardados.
     $fields = ['secretaria', 'sistema', 'address', 'phone', 'cnpj'];
-    $values = [];
+    $provided = [];
     foreach ($fields as $f) {
-        $values[$f] = isset($body[$f]) ? trim((string)$body[$f]) : '';
+        if (array_key_exists($f, $body)) {
+            $v = trim((string)$body[$f]);
+            $provided[$f] = $v === '' ? null : $v; // vacío explícito = borrar el campo
+        }
     }
-
-    // Los campos opcionales vacíos se guardan como NULL en la base.
-    $toNull = function ($v) { return $v === '' ? null : $v; };
 
     $pdo     = getDB();
     $nameKey = clinic_key($name);
@@ -44,16 +47,27 @@ if ($method === 'POST') {
     $existing = $stmt->fetch();
 
     if ($existing) {
+        $curStmt = $pdo->prepare('SELECT secretaria, sistema, address, phone, cnpj FROM clinic_profiles WHERE id = ?');
+        $curStmt->execute([$existing['id']]);
+        $cur = $curStmt->fetch();
+
+        $merged = [];
+        foreach ($fields as $f) {
+            $merged[$f] = array_key_exists($f, $provided) ? $provided[$f] : $cur[$f];
+        }
+
         // Reactivar si estaba desactivada, conservando el nombre almacenado y
-        // actualizando el perfil con los datos enviados.
+        // actualizando el perfil con los datos enviados (merge, no overwrite).
         $pdo->prepare('UPDATE clinic_profiles SET active = 1, has_receta_profile = 1,
               secretaria = ?, sistema = ?, address = ?, phone = ?, cnpj = ? WHERE id = ?')
-            ->execute([$toNull($values['secretaria']), $toNull($values['sistema']), $toNull($values['address']), $toNull($values['phone']), $toNull($values['cnpj']), $existing['id']]);
-        $clinic = ['id' => (int)$existing['id'], 'name' => $existing['name'], 'exists' => true];
+            ->execute([$merged['secretaria'], $merged['sistema'], $merged['address'], $merged['phone'], $merged['cnpj'], $existing['id']]);
+        $clinic = ['id' => (int)$existing['id'], 'name' => $existing['name'], 'exists' => true, 'address' => $merged['address']];
     } else {
+        $ins = [];
+        foreach ($fields as $f) { $ins[$f] = $provided[$f] ?? null; }
         $pdo->prepare('INSERT INTO clinic_profiles (name, name_key, active, has_receta_profile, secretaria, sistema, address, phone, cnpj) VALUES (?, ?, 1, 1, ?, ?, ?, ?, ?)')
-            ->execute([$name, $nameKey, $toNull($values['secretaria']), $toNull($values['sistema']), $toNull($values['address']), $toNull($values['phone']), $toNull($values['cnpj'])]);
-        $clinic = ['id' => (int)$pdo->lastInsertId(), 'name' => $name, 'exists' => false];
+            ->execute([$name, $nameKey, $ins['secretaria'], $ins['sistema'], $ins['address'], $ins['phone'], $ins['cnpj']]);
+        $clinic = ['id' => (int)$pdo->lastInsertId(), 'name' => $name, 'exists' => false, 'address' => $ins['address']];
     }
 
     http_response_code(201);

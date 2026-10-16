@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import type { ClinicProfile } from '../types';
-import { Building2, Plus, Check, X, ChevronDown } from 'lucide-react';
+import { Building2, Plus, Check, X, ChevronDown, Pencil } from 'lucide-react';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { getErrorMessage, cn } from '../lib/utils';
@@ -24,6 +24,12 @@ export const ClinicProfileField: React.FC<ClinicProfileFieldProps> = ({ options,
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [activeIdx, setActiveIdx] = useState(-1);
+
+  const [editingAddress, setEditingAddress] = useState(false);
+  const [editAddress, setEditAddress] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+
+  const selectedProfile = options.find(o => o.name === value);
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -56,7 +62,9 @@ export const ClinicProfileField: React.FC<ClinicProfileFieldProps> = ({ options,
   const openList = () => { setActiveIdx(selectedIdx); setOpen(true); };
   const toggleList = () => (open ? setOpen(false) : openList());
 
-  const pick = (name: string) => { onValueChange(name); setOpen(false); };
+  // Cierra cualquier edición de dirección abierta al cambiar de clínica
+  // (evita guardarle la dirección editada a otra clínica distinta).
+  const pick = (name: string) => { onValueChange(name); setOpen(false); setEditingAddress(false); };
 
   const onListKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') { e.preventDefault(); setOpen(false); return; }
@@ -96,6 +104,27 @@ export const ClinicProfileField: React.FC<ClinicProfileFieldProps> = ({ options,
   };
 
   const closeAdd = () => { setShowAdd(false); setForm(emptyForm()); };
+
+  // Edición de la dirección de una clínica YA guardada (no crea una nueva:
+  // el POST a /api/receta-clinics actualiza por nombre).
+  const startEditAddress = () => {
+    setEditAddress(selectedProfile?.address || '');
+    setEditingAddress(true);
+  };
+  const cancelEditAddress = () => setEditingAddress(false);
+
+  const saveEditAddress = async () => {
+    if (!value) return;
+    setEditSaving(true);
+    try {
+      await addRecetaClinic({ name: value, address: editAddress.trim() });
+      setEditingAddress(false);
+    } catch (err) {
+      alert(t('save_error_msg', { message: getErrorMessage(err) }));
+    } finally {
+      setEditSaving(false);
+    }
+  };
 
   return (
     <>
@@ -168,7 +197,51 @@ export const ClinicProfileField: React.FC<ClinicProfileFieldProps> = ({ options,
           <Plus size={15} strokeWidth={2.5} />
           {t('clinic_add_btn')}
         </button>
+
+        {value && !editingAddress && (
+          <button type="button"
+            onClick={startEditAddress}
+            title={t('clinic_edit_address_tooltip')}
+            className="flex items-center justify-center h-11 w-11 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-[#0F4C81]/40 text-[#0F4C81] transition-all shrink-0">
+            <Pencil size={15} strokeWidth={2} />
+          </button>
+        )}
       </div>
+
+      {editingAddress && (
+        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3 animate-fade-in">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold text-slate-900">{t('clinic_edit_address_title')}</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">{value}</p>
+            </div>
+            <button type="button" onClick={cancelEditAddress} className="text-slate-400 hover:text-slate-600 shrink-0">
+              <X size={14} />
+            </button>
+          </div>
+
+          <Textarea
+            rows={4}
+            className="border-slate-200 bg-white focus:border-[#0F4C81]/50 resize-y"
+            placeholder={t('clinic_profile_data_placeholder')}
+            value={editAddress}
+            onChange={e => setEditAddress(e.target.value)}
+            autoFocus
+          />
+
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={cancelEditAddress}
+              className="px-3 h-9 rounded-xl border border-slate-200 text-xs font-semibold text-slate-500 hover:bg-white transition-colors">
+              {t('cancel')}
+            </button>
+            <button type="button" onClick={saveEditAddress} disabled={editSaving}
+              className="flex items-center gap-1.5 px-3 h-9 bg-[#0F4C81] hover:bg-[#0a3a63] disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors">
+              <Check size={14} strokeWidth={2.5} />
+              {editSaving ? t('loading') : t('clinic_edit_save_btn')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {showAdd && (
         <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3 animate-fade-in">
