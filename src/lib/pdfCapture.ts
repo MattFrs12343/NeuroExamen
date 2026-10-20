@@ -39,6 +39,15 @@ export interface CapturedPdf {
 export async function capturePrintAreaToPdf(kind: string, scale = 2.5): Promise<CapturedPdf> {
   const pages = Array.from(document.querySelectorAll<HTMLElement>(`.print-area-${kind} > div`));
   if (!pages.length) {
+    // Pedidos compuestos SOLO por exámenes especiales (Dinamômetro/
+    // Estesiômetro/Equilíbrio) no dejan nada para capturar: PrintTemplate
+    // los omite a propósito durante la captura porque el servidor los arma
+    // de cero con TCPDF (ver api/orders/signed-pdf.php). Subir un PDF vacío
+    // es válido acá — el servidor nunca importa páginas de él en ese caso.
+    if (kind === 'order') {
+      const empty = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'p' });
+      return { blob: empty.output('blob'), pageHeightsMm: [] };
+    }
     throw new Error(`No se encontró contenido para capturar (.print-area-${kind}).`);
   }
 

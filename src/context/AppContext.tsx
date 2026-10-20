@@ -1470,9 +1470,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           setCaptureTarget(null);
         }
 
-        const signedBlob = await uploadAndSignPdf(apiKind, record.id, captured.blob, {
+        const signQuery: Record<string, string> = {
           contentHeights: captured.pageHeightsMm.map(h => h.toFixed(1)).join(','),
-        });
+        };
+        // El servidor necesita la lista ORDENADA de exámenes del pedido para
+        // saber dónde intercalar los documentos especiales (Dinamômetro/
+        // Estesiômetro/Equilíbrio, generados de cero con TCPDF) entre las
+        // páginas capturadas de los demás exámenes — ver api/orders/signed-pdf.php.
+        if (kind === 'order') {
+          signQuery.examIds = (opts?.examIds ?? (record as Order).exams).join(',');
+        }
+        const signedBlob = await uploadAndSignPdf(apiKind, record.id, captured.blob, signQuery);
         await printPdfBlob(signedBlob);
       } finally {
         setSelectedOrderForPrint(null);

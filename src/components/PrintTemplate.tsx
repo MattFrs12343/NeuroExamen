@@ -4,8 +4,10 @@ import { useApp } from '../context/AppContext';
 import cerebroLogo from '../assets/cerebro.png';
 import { VerificationQrCard } from './VerificationQrCard';
 import { RichText } from './RichText';
-import type { Order } from '../types';
+import type { Order, Exam } from '../types';
 import { DOCTOR_CRM } from '../lib/doctor';
+import { SpecializedExamDocPages } from './PrintSpecializedExamTemplate';
+import { SPECIALIZED_EXAM_IDS, SPECIALIZED_EXAM_DOCS } from '../data/specializedExamDocs';
 
 const BLUE = '#0066CC';
 const GRAY = '#555555';
@@ -189,6 +191,30 @@ const PrintPage: React.FC<PrintPageProps> = ({ order, formattedDate, entry, isLa
               />
             </div>
           )}
+
+          {/* Índice del Relatório Médico — solo para los exámenes que además
+              imprimen el documento legal completo (ver SpecializedExamDocPages
+              más abajo): lista los TÍTULOS de sus secciones (no el texto
+              entero, que ya va en las hojas siguientes), para que quien lea
+              solo esta hoja de pedido sepa qué trae adjunto. */}
+          {SPECIALIZED_EXAM_IDS.has(entry.id) && (() => {
+            const sectionTitles = SPECIALIZED_EXAM_DOCS[entry.id].body
+              .filter((b) => b.k === 'h')
+              .map((b) => b.t);
+            if (!sectionTitles.length) return null;
+            return (
+              <div style={{ marginLeft: '30px', marginTop: '10px' }}>
+                <p style={{ margin: '0 0 4px 0', fontSize: '11.5px', fontWeight: 700, color: BLACK }}>
+                  Relatório Médico — este exame inclui:
+                </p>
+                {sectionTitles.map((title, i) => (
+                  <p key={i} style={{ margin: '0 0 2px 0', fontSize: '10.5px', color: GRAY, lineHeight: '1.4' }}>
+                    {title}
+                  </p>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -285,8 +311,16 @@ export const PrintTemplate: React.FC = () => {
 
   const customExamsMap = (order.customExams as Record<string, { id: string; name: string; category: string; categoryTitle?: string }>) || {};
 
-  // One entry per individually requested exam â€” each prints on its own page.
-  const examEntries: PrintExamEntry[] = [];
+  // Un examen produce SIEMPRE su página genérica de siempre (checkbox +
+  // nombre + observações de categoría — la "hoja de pedido" que va con el
+  // paciente al técnico), y ADEMÁS, si es Dinamômetro/Estesiômetro/Equilíbrio
+  // (SPECIALIZED_EXAM_IDS), su propio documento legal completo de varias
+  // hojas (ver PrintSpecializedExamTemplate) justo después — pedido
+  // explícito del médico: uno no reemplaza al otro, van juntos.
+  type RenderUnit =
+    | { kind: 'generic'; examId: string; exam: Exam }
+    | { kind: 'specialized'; examId: string };
+  const units: RenderUnit[] = [];
 
   order.exams.forEach((examId) => {
     let exam = exams.find(e => e.id === examId);
@@ -302,12 +336,17 @@ export const PrintTemplate: React.FC = () => {
 
     if (!exam) return;
 
-    examEntries.push({
-      id: exam.id,
-      name: exam.name,
-      category: exam.category,
-      categoryObs: order.examDescriptions?.[exam.category],
-    });
+    units.push({ kind: 'generic', examId, exam });
+
+    // Durante "Guardar e firmar" (captureTarget === 'order') el documento
+    // especializado NO se captura acá: el servidor lo genera de cero con
+    // TCPDF (texto vectorial, mismo formato que Laudos — ver
+    // api/orders/signed-pdf.php) y lo empalma después de la página genérica
+    // capturada de este mismo examen. Para "Imprimir" nativo
+    // (captureTarget === null) sí se renderiza acá, como siempre.
+    if (SPECIALIZED_EXAM_IDS.has(examId) && captureTarget !== 'order') {
+      units.push({ kind: 'specialized', examId });
+    }
   });
 
   return (
@@ -318,17 +357,40 @@ export const PrintTemplate: React.FC = () => {
         backgroundColor: '#fff',
       }}
     >
-      {examEntries.map((entry, idx) => (
-        <PrintPage
-          key={`${entry.id}-${idx}`}
-          order={order}
-          formattedDate={formattedDate}
-          entry={entry}
-          isLast={idx === examEntries.length - 1}
-          verificationQr={captureTarget === 'order' ? verificationQr : null}
-          verificationToken={captureTarget === 'order' ? verificationToken : null}
-        />
-      ))}
+      {units.map((u, idx) => {
+        const isLast = idx === units.length - 1;
+
+        if (u.kind === 'specialized') {
+          return (
+            <SpecializedExamDocPages
+              key={`spec-${u.examId}-${idx}`}
+              examId={u.examId}
+              order={order}
+              isLastExam={isLast}
+            />
+          );
+        }
+
+        const exam = u.exam;
+        const entry: PrintExamEntry = {
+          id: exam.id,
+          name: exam.name,
+          category: exam.category,
+          categoryObs: order.examDescriptions?.[exam.category],
+        };
+
+        return (
+          <PrintPage
+            key={`${exam.id}-${idx}`}
+            order={order}
+            formattedDate={formattedDate}
+            entry={entry}
+            isLast={isLast}
+            verificationQr={captureTarget === 'order' ? verificationQr : null}
+            verificationToken={captureTarget === 'order' ? verificationToken : null}
+          />
+        );
+      })}
     </div>
   );
 };

@@ -42,6 +42,11 @@ if ($uri === '/clinics') {
     require __DIR__ . '/api/clinics/index.php'; exit;
 }
 
+// ── Logo de una clínica (marca de agua de documentos especializados) ────────
+if ($uri === '/clinic-logo') {
+    require __DIR__ . '/api/clinic-logo/index.php'; exit;
+}
+
 // ── Clínicas de Recetas (perfil completo, separadas de /clinics) ─────────────
 if ($uri === '/receta-clinics') {
     require __DIR__ . '/api/receta-clinics/index.php'; exit;

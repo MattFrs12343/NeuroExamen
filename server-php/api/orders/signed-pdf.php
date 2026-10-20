@@ -18,6 +18,8 @@ require_once __DIR__ . '/../../middleware/cors.php';
 require_once __DIR__ . '/../../middleware/auth.php';
 require_once __DIR__ . '/../../lib/signing.php';
 require_once __DIR__ . '/../../lib/doctor.php';
+require_once __DIR__ . '/../../lib/specializedExamDocs.php';
+require_once __DIR__ . '/../../lib/orderWatermarkPdf.php';
 
 setCorsHeaders();
 
@@ -68,7 +70,106 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $contentHeightsMm = isset($_GET['contentHeights']) && $_GET['contentHeights'] !== ''
         ? array_map('floatval', explode(',', $_GET['contentHeights']))
         : null;
-    signUploadedPdf('pedido_' . $orderId . '_assinado.pdf', DOCTOR_NAME, true, $contentHeightsMm, true, 35.0, null, 7.0, 'right', 'orders', $orderId);
+
+    $examIds = isset($_GET['examIds']) && $_GET['examIds'] !== ''
+        ? explode(',', $_GET['examIds'])
+        : null;
+    $specializedIds = specializedExamDocIds();
+    $hasSpecialized = $examIds && array_intersect($examIds, $specializedIds);
+
+    // Sin lista de exámenes (llamador viejo) o sin ninguno especializado en
+    // este pedido: camino de siempre — todas las páginas capturadas se
+    // importan tal cual (ver signUploadedPdf() en lib/signing.php).
+    if (!$examIds || !$hasSpecialized) {
+        signUploadedPdf('pedido_' . $orderId . '_assinado.pdf', DOCTOR_NAME, true, $contentHeightsMm, true, 35.0, null, 7.0, 'right', 'orders', $orderId);
+        exit;
+    }
+
+    // Hay Dinamômetro/Estesiômetro/Equilíbrio en este pedido: esos exámenes
+    // NO vienen en el PDF capturado (PrintTemplate.tsx los omite durante la
+    // captura — ver captureTarget==='order' en ese componente) y se generan
+    // acá de cero con TCPDF, intercalados en el orden original con las
+    // páginas capturadas de los demás exámenes (mismo formato que Laudos).
+    $bytes = file_get_contents('php://input');
+    if (!$bytes) {
+        header('Content-Type: application/json');
+        http_response_code(400);
+        echo json_encode(['error' => 'Nenhum arquivo PDF recebido.']);
+        exit;
+    }
+    $tmpPath = tempnam(sys_get_temp_dir(), 'sign_upload_');
+    file_put_contents($tmpPath, $bytes);
+    register_shutdown_function(function () use ($tmpPath) { @unlink($tmpPath); });
+
+    // Marca de agua del logo de la clínica elegida en ESTE pedido — solo
+    // para las hojas de los documentos especializados (texto vectorial): en
+    // las páginas importadas de exámenes genéricos, el raster capturado es
+    // opaco y la tapa por completo, así que no hace falta distinguir.
+    $wmBin = null;
+    $clinicLogo = getOrderClinicLogoDataUri($pdo, $o['clinic_name'] ?? null);
+    if ($clinicLogo) {
+        $wmBin = base64_decode(substr($clinicLogo, strpos($clinicLogo, ',') + 1));
+    }
+
+    $pdf = new OrderWatermarkFpdi('P', 'mm', 'A4', true, 'UTF-8', false);
+    $pdf->wmBin = $wmBin;
+    $pdf->SetCreator('NeuroExamenes');
+    $pdf->SetAuthor(DOCTOR_NAME);
+    $pdf->setPrintHeader(true);
+    $pdf->setPrintFooter(false);
+
+    try {
+        $pageCount = $pdf->setSourceFile($tmpPath);
+    } catch (\Throwable $e) {
+        header('Content-Type: application/json');
+        http_response_code(400);
+        echo json_encode(['error' => 'Arquivo PDF inválido: ' . $e->getMessage()]);
+        exit;
+    }
+
+    $sig = resolveSigner(DOCTOR_NAME);
+    $capturedPageIdx = 0; // próxima página SIN USAR del PDF capturado (una por examen, SIEMPRE, incluidos los especializados)
+
+    foreach ($examIds as $examId) {
+        // La hoja de pedido genérica SIEMPRE sale — el médico pidió
+        // explícitamente que no se reemplace, sino que el documento
+        // especializado se agregue A CONTINUACIÓN de ella.
+        $capturedPageIdx++;
+        if ($capturedPageIdx <= $pageCount) {
+            $templateId = $pdf->importPage($capturedPageIdx);
+            $size = $pdf->getTemplateSize($templateId);
+            $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+            $pdf->useTemplate($templateId);
+
+            $contentH = $contentHeightsMm[$capturedPageIdx - 1] ?? null;
+            $footerFromBottomMm = 35.0;
+            $fixedFooterY = $size['height'] - $footerFromBottomMm;
+            $footerY = ($contentH !== null && $contentH + 2 > $fixedFooterY)
+                ? min($contentH + 2, $size['height'] - 25)
+                : $fixedFooterY;
+
+            $pdf->SetAutoPageBreak(false);
+            $pdf->SetXY(0, $footerY);
+            $pdf->SetLeftMargin(18);
+            $pdf->SetRightMargin(18);
+            drawSignatureFooter($pdf, $sig['name'], $sig['document'], $sig['documentLabel'], 7.0);
+        }
+
+        if (in_array($examId, $specializedIds, true)) {
+            renderSpecializedExamDocument(
+                $pdf,
+                $examId,
+                (string) $o['patient_name'],
+                (string) $o['date'],
+                $sig,
+                $o['qr_content'] ?? null,
+                $o['token'] ?? null,
+                $o['access_code'] ?? null
+            );
+        }
+    }
+
+    signPdfOutput($pdf, 'pedido_' . $orderId . '_assinado.pdf', $sig, 'orders', $orderId);
     exit;
 }
 
