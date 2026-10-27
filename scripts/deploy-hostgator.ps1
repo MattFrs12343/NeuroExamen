@@ -98,7 +98,9 @@ if ($Backend) {
   $files = @(
     @{ Local = 'server-php/lib/laudoWatermarkPdf.php'; Remote = "$RemoteRoot/api/lib/laudoWatermarkPdf.php"; RemoteAbs = "$RemoteRootAbs/api/lib/laudoWatermarkPdf.php"; Backup = $true },
     @{ Local = 'server-php/lib/signing.php'; Remote = "$RemoteRoot/api/lib/signing.php"; RemoteAbs = "$RemoteRootAbs/api/lib/signing.php"; Backup = $true },
-    @{ Local = 'server-php/api/laudos/signed-pdf.php'; Remote = "$RemoteRoot/api/api/laudos/signed-pdf.php"; RemoteAbs = "$RemoteRootAbs/api/api/laudos/signed-pdf.php"; Backup = $true }
+    @{ Local = 'server-php/api/laudos/signed-pdf.php'; Remote = "$RemoteRoot/api/api/laudos/signed-pdf.php"; RemoteAbs = "$RemoteRootAbs/api/api/laudos/signed-pdf.php"; Backup = $true },
+    @{ Local = 'server-php/api/laudos/index.php'; Remote = "$RemoteRoot/api/api/laudos/index.php"; RemoteAbs = "$RemoteRootAbs/api/api/laudos/index.php"; Backup = $true },
+    @{ Local = 'server-php/api/verificar/index.php'; Remote = "$RemoteRoot/api/api/verificar/index.php"; RemoteAbs = "$RemoteRootAbs/api/api/verificar/index.php"; Backup = $true }
   )
   foreach ($f in $files) {
     if (-not (Test-Path $f.Local)) { Write-Host "  FALTA local: $($f.Local)" -ForegroundColor Red; $script:Failed += "missing $($f.Local)"; continue }

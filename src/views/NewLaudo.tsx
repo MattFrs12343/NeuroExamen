@@ -10,8 +10,8 @@ import { RichTextField } from '../components/ui/rich-text-field';
 import { ExpandableRichField } from '../components/ExpandableRichField';
 import { RichText } from '../components/RichText';
 import { findClinicProfile, normalizeClinicKey } from '../lib/clinic';
-import { getLaudoOwnProfile, getLaudoProfileFor } from '../lib/laudoClinic';
-import { getErrorMessage } from '../lib/utils';
+import { getLaudoOwnProfile, getLaudoProfileFor, laudoTituloI18nKey } from '../lib/laudoClinic';
+import { cn, getErrorMessage } from '../lib/utils';
 import { isRichTextEmpty } from '../lib/richText';
 import { printSignedPdf } from '../lib/signedPdf';
 
@@ -48,6 +48,7 @@ export const NewLaudo: React.FC = () => {
   const [date, setDate] = useState(() => todayLocalStr());
   const [local, setLocal] = useState('');
   const [narrative, setNarrative] = useState('');
+  const [tituloTipo, setTituloTipo] = useState<'pericial' | 'medico'>('pericial');
   const [cids, setCids] = useState('');
   const [conclusao, setConclusao] = useState<LaudoConclusao | ''>(DEFAULT_CONCLUSAO);
   // Alta/edición/baja del catálogo de conclusiones (ver handle*Conclusao)
@@ -126,6 +127,7 @@ export const NewLaudo: React.FC = () => {
     setDate(activeLaudoForEdit.date || todayLocalStr());
     setLocal(activeLaudoForEdit.local || '');
     setNarrative(activeLaudoForEdit.narrative || '');
+    setTituloTipo(activeLaudoForEdit.tituloTipo === 'medico' ? 'medico' : 'pericial');
     setCids(activeLaudoForEdit.cids || activeLaudoForEdit.diagnostico || '');
     setConclusao(activeLaudoForEdit.conclusao || '');
     setAfastamentoDias(activeLaudoForEdit.afastamentoDias ? String(activeLaudoForEdit.afastamentoDias) : '');
@@ -218,6 +220,7 @@ export const NewLaudo: React.FC = () => {
     setLastClinicName('');
     setLocal('');
     setNarrative('');
+    setTituloTipo('pericial');
     setCids('');
     setObservacoes('');
     setAfastamentoDias('');
@@ -311,6 +314,7 @@ export const NewLaudo: React.FC = () => {
     date: date || undefined,
     local: local.trim() || laudoProfile?.local || undefined,
     narrative,
+    tituloTipo,
     cids: cids.trim() || undefined,
     conclusao: conclusaoValida || undefined,
     // Se manda la lista completa: la API la guarda como snapshot para que el
@@ -574,8 +578,23 @@ export const NewLaudo: React.FC = () => {
               sin membretes de color, como el PDF oficial). */}
           <div className="rounded-t-2xl shadow-premium-lg overflow-hidden mx-auto border border-slate-200 bg-white"
             style={{ maxWidth: '760px', color: '#1F2937', padding: '28px 32px 20px 32px' }}>
+            <div className="flex items-center justify-center gap-1.5 mb-2.5">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mr-1">{t('laudo_titulo_label')}:</span>
+              {(['pericial', 'medico'] as const).map(opt => (
+                <button key={opt} type="button" onClick={() => setTituloTipo(opt)}
+                  className={cn(
+                    'px-2.5 h-6 rounded-full text-[11px] font-semibold transition-colors',
+                    tituloTipo === opt
+                      ? 'bg-[#0F4C81] text-white'
+                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  )}
+                >
+                  {t(laudoTituloI18nKey(opt))}
+                </button>
+              ))}
+            </div>
             <p className="text-center font-extrabold uppercase" style={{ fontSize: '17px', letterSpacing: '0.08em', color: '#111827', margin: 0, paddingBottom: '10px', borderBottom: '1px solid #E2E8F0' }}>
-              {t('print_laudo_title')}
+              {t(laudoTituloI18nKey(tituloTipo))}
             </p>
 
             {/* Paciente */}

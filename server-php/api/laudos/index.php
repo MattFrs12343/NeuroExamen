@@ -72,6 +72,7 @@ function formatLaudo(array $row): array {
         'doctorName'            => $row['doctor_name']            ?: null,
         'doctorCrm'             => $row['doctor_crm']             ?: null,
         'templateId'            => $row['template_id']            ?: null,
+        'tituloTipo'            => $row['titulo_tipo']             ?: 'pericial',
         'createdBy'             => $row['user_name'],
         'token'                 => $row['token']                  ?: null,
         'accessCode'            => $row['access_code']            ?: null,
@@ -128,13 +129,14 @@ if ($method === 'POST') {
         'patientId', 'patientName', 'patientIdentityCard', 'patientBirthDate', 'patientPhone',
         'orgao', 'date', 'local', 'narrative', 'cids', 'diagnostico', 'conclusao',
         'conclusaoOpcoes', 'afastamentoDias', 'observacoes', 'clinicName', 'clinicAddress', 'clinicPhone',
-        'doctorName', 'doctorCrm', 'templateId',
+        'doctorName', 'doctorCrm', 'templateId', 'tituloTipo',
     ];
     $data = [];
     foreach ($fields as $f) {
         $data[$f] = $body[$f] ?? null;
     }
     $data['narrative'] = trim((string)($data['narrative'] ?? ''));
+    $data['tituloTipo'] = $data['tituloTipo'] === 'medico' ? 'medico' : 'pericial';
 
     if ($data['narrative'] === '') {
         http_response_code(400);
@@ -165,8 +167,8 @@ if ($method === 'POST') {
                 patient_birth_date, patient_phone, orgao, date, local, narrative,
                 cids, diagnostico, conclusao, conclusao_opcoes, afastamento_dias, observacoes,
                 clinic_name, clinic_address, clinic_phone,
-                doctor_name, doctor_crm, template_id
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                doctor_name, doctor_crm, template_id, titulo_tipo
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $newId, $userId,
@@ -191,6 +193,7 @@ if ($method === 'POST') {
             $data['doctorName'],
             $data['doctorCrm'],
             $data['templateId'],
+            $data['tituloTipo'],
         ]);
 
         $pdo->commit();
@@ -228,13 +231,14 @@ if ($method === 'PUT' && $laudoId) {
         'patientId', 'patientName', 'patientIdentityCard', 'patientBirthDate', 'patientPhone',
         'orgao', 'date', 'local', 'narrative', 'cids', 'diagnostico', 'conclusao',
         'conclusaoOpcoes', 'afastamentoDias', 'observacoes', 'clinicName', 'clinicAddress', 'clinicPhone',
-        'doctorName', 'doctorCrm', 'templateId',
+        'doctorName', 'doctorCrm', 'templateId', 'tituloTipo',
     ];
     $data = [];
     foreach ($fields as $f) {
         $data[$f] = $body[$f] ?? null;
     }
     $data['narrative'] = trim((string)($data['narrative'] ?? ''));
+    $data['tituloTipo'] = $data['tituloTipo'] === 'medico' ? 'medico' : 'pericial';
 
     if ($data['narrative'] === '') {
         http_response_code(400);
@@ -256,7 +260,8 @@ if ($method === 'PUT' && $laudoId) {
             patient_id=?, patient_name=?, patient_identity_card=?, patient_birth_date=?,
             patient_phone=?, orgao=?, date=?, local=?, narrative=?, cids=?, diagnostico=?,
             conclusao=?, conclusao_opcoes=?, afastamento_dias=?, observacoes=?,
-            clinic_name=?, clinic_address=?, clinic_phone=?, doctor_name=?, doctor_crm=?, template_id=?
+            clinic_name=?, clinic_address=?, clinic_phone=?, doctor_name=?, doctor_crm=?, template_id=?,
+            titulo_tipo=?
          WHERE id=?'
     );
     $upd->execute([
@@ -281,6 +286,7 @@ if ($method === 'PUT' && $laudoId) {
         $data['doctorName'],
         $data['doctorCrm'],
         $data['templateId'],
+        $data['tituloTipo'],
         $laudoId,
     ]);
 

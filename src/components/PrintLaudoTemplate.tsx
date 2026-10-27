@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
-import { findLaudoClinicProfile, getLaudoProfileFor } from '../lib/laudoClinic';
+import { findLaudoClinicProfile, getLaudoProfileFor, laudoTituloI18nKey } from '../lib/laudoClinic';
 import { normalizeClinicKey } from '../lib/clinic';
 import { LAUDO_PROFILES } from '../data/laudoProfiles';
 import { planDocIntoPanes, PX_PER_MM } from '../lib/printPagination';
@@ -310,7 +310,7 @@ export const PrintLaudoTemplate: React.FC = () => {
       color: '#111827',
       textTransform: 'uppercase',
     }}>
-      {t('print_laudo_title')}
+      {t(laudoTituloI18nKey(doc.tituloTipo))}
     </p>,
     <hr key="rule" style={{ border: 'none', borderTop: `1px solid ${LINE}`, margin: '0 0 16px 0' }} />,
 

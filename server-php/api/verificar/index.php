@@ -172,7 +172,7 @@ $DOCUMENT_KINDS = [
     // "Paciente" sin hacer el JOIN de `patients`, igual que Recetas.
     'laudos' => [
         'table'      => 'laudos',
-        'label'      => 'Laudo Pericial Médico',
+        'label'      => 'Laudo Médico Pericial',
         'hasPatient' => true,
         'patientColumn' => 'patient_name',
         'doctorName' => fn($r) => $r['doctor_name'] ?: DOCTOR_NAME,

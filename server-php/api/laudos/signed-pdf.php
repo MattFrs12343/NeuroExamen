@@ -100,6 +100,11 @@ $INK   = '#111827';
 $MUTED = '#6B7280';
 $LINE  = '#CBD5E1';
 
+// Título elegido por el médico para ESTE laudo (ver Laudo.tituloTipo en
+// types/index.ts) — default 'pericial' mantiene el título histórico para
+// laudos viejos sin el campo.
+$tituloLaudo = ($r['titulo_tipo'] ?? '') === 'medico' ? 'LAUDO MÉDICO' : 'LAUDO MÉDICO PERICIAL';
+
 // ------------------------------------------------------------------
 // HTML del documento — fiel al diseño ya aprobado en PrintLaudoTemplate.tsx
 // (caja de paciente con 3 líneas simples, QR abajo a la izquierda arriba
@@ -201,7 +206,7 @@ $pdf = new LaudoWatermarkPdf('P', 'mm', 'A4', true, 'UTF-8', false);
 $pdf->wmBin  = $bin;
 $pdf->SetCreator('NeuroExamenes');
 $pdf->SetAuthor($r['doctor_name'] ?: 'NeuroExamenes');
-$pdf->SetTitle('Laudo Pericial Médico - ' . $r['patient_name']);
+$pdf->SetTitle($tituloLaudo . ' - ' . $r['patient_name']);
 $pdf->setPrintHeader(true);   // necesario para que TCPDF llame Header() en cada hoja
 $pdf->setPrintFooter(false);
 
@@ -268,7 +273,7 @@ if ($logoData) {
 // superponerse con CUALQUIER logo.
 $pdf->SetY($logoTop + max(30, $logoH + 4));
 
-$pdf->writeHTML('<p style="text-align:center;font-size:14pt;font-weight:bold;letter-spacing:1pt;color:' . $INK . ';margin:0;">LAUDO PERICIAL MÉDICO</p>', true, false, true, false, '');
+$pdf->writeHTML('<p style="text-align:center;font-size:14pt;font-weight:bold;letter-spacing:1pt;color:' . $INK . ';margin:0;">' . $tituloLaudo . '</p>', true, false, true, false, '');
 $pdf->SetY($pdf->GetY() + 2);
 $pdf->writeHTML('<hr style="border-top:0.3mm solid ' . $LINE . ';" />', true, false, true, false, '');
 $pdf->SetY($pdf->GetY() + 5);

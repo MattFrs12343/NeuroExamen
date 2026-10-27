@@ -66,3 +66,15 @@ export const getLaudoProfileFor = (
   // el logo NO: cada clínica solo muestra el suyo propio si lo tiene cargado.
   return { ...fallback, logo: null as string | null };
 };
+
+/**
+ * Clave i18n del título impreso según la variante elegida para ESTE laudo
+ * (ver Laudo.tituloTipo en types) — a diferencia del resto del perfil, el
+ * título NO es un default de clínica, el médico lo elige documento por
+ * documento. 'pericial' (default, incluye laudos viejos sin el campo) imprime
+ * el título histórico.
+ */
+export const laudoTituloI18nKey = (
+  tipo?: string | null,
+): 'print_laudo_title_pericial' | 'print_laudo_title_medico' =>
+  tipo === 'medico' ? 'print_laudo_title_medico' : 'print_laudo_title_pericial';

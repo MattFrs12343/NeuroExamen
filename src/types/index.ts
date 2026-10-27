@@ -404,6 +404,12 @@ export interface Laudo {
   doctorCrm?: string;
   /** Clave del perfil de Laudo usado (clinica_saude_campinas | ...). */
   templateId?: string;
+  /**
+   * Variante del título impreso, elegida por laudo (no es un default de
+   * clínica): 'pericial' = "LAUDO MÉDICO PERICIAL" (default),
+   * 'medico' = "LAUDO MÉDICO" (versión corta).
+   */
+  tituloTipo?: 'pericial' | 'medico';
   createdBy: string;
   /** Token de verificación pública — se genera solo al crear el laudo. */
   token?: string;
