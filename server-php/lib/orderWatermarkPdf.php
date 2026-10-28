@@ -26,11 +26,11 @@ class OrderWatermarkFpdi extends \setasign\Fpdi\Tcpdf\Fpdi {
         if ($imgDim === false || (int) $imgDim[0] <= 0) {
             return;
         }
-        $wmW = 140;
+        $wmW = 160;
         $wmH = $wmW * ($imgDim[1] / $imgDim[0]);
         $pw  = $this->getPageWidth();
         $ph  = $this->getPageHeight();
-        $this->SetAlpha(0.07);
+        $this->SetAlpha(0.15);
         $this->Image('@' . $this->wmBin, ($pw - $wmW) / 2, ($ph - $wmH) / 2, $wmW, 0, 'PNG');
         $this->SetAlpha(1.0);
     }

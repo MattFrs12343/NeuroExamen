@@ -108,11 +108,27 @@ function isLaudoCampinasClinic(?string $templateId, ?string $clinicName = null):
  * SÃO LUIZ: el original (ClinicasLaudos/SAO LUIZ.docx) es de Av. Papa João
  * Paulo I, Jd. Pres. Dutra, Guarulhos — 389x114, el mismo que
  * assets/logo-clinicamedicaparquesaoluiz.png.
+ *
+ * DOCS SAÚDE: mismo consultório, dos catálogos con nombre distinto —
+ * `clinics` (Pedidos) la tiene como "DOCS SUA CLINICA DE SAÚDE"
+ * (key docssuaclinicadesaude) pero el archivo subido se llama según el
+ * nombre usado en Recetas/Laudo, "CLINICA DOC SAUDE"
+ * (assets/logo-clinicadocsaude.png). Sin este alias, los pedidos de esa
+ * clínica salían sin marca de agua porque la key no coincidía con ningún
+ * archivo.
+ *
+ * HABIB: en clinic_profiles hay DOS filas para el mismo consultório
+ * ("CLINICA HABIB", id 33, key clinicahabib — la usada al subir
+ * assets/logo-clinicahabib.png) y ("CLINICA HABIB CONSULTAS E XAMES", id 9,
+ * key clinicahabibconsultasexames — la que aparece realmente en el selector
+ * de Pedidos). Sin este alias, elegir la segunda no encontraba el logo.
  */
 function laudo_logo_aliases(): array {
     static $map = [
         'clinicasaoluiz'      => 'clinicamedicaparquesaoluiz',
         'clinicamedicasaoluiz' => 'clinicamedicaparquesaoluiz',
+        'docssuaclinicadesaude' => 'clinicadocsaude',
+        'clinicahabibconsultasexames' => 'clinicahabib',
     ];
     return $map;
 }

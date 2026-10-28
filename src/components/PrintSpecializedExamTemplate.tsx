@@ -373,7 +373,7 @@ export const SpecializedExamDocPages: React.FC<Props> = ({ examId, order, isLast
                   pointerEvents: 'none',
                 }}
               >
-                <img src={clinicLogo} alt="" style={{ width: '140mm', height: 'auto', opacity: 0.07 }} />
+                <img src={clinicLogo} alt="" style={{ width: '160mm', height: 'auto', opacity: 0.15 }} />
               </div>
             )}
             {panes.length > 1 && idx > 0 && (

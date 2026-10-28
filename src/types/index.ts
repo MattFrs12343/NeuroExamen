@@ -32,6 +32,15 @@ export interface Exam {
 
 export type OrderStatus = 'Pendiente' | 'Concluido' | 'Cancelado';
 
+/**
+ * Qué se imprime de un pedido que incluye exámenes con justificación médica
+ * (Dinamômetro / Estesiômetro / Equilíbrio — ver SPECIALIZED_EXAM_IDS):
+ *  - 'justification': solo el documento de justificación médica.
+ *  - 'order': solo la hoja de pedido (sin justificación).
+ *  - 'both': ambos documentos, comportamiento histórico.
+ */
+export type OrderPrintMode = 'justification' | 'order' | 'both';
+
 export interface Order {
   id: string;
   patientId: string;
@@ -52,6 +61,11 @@ export interface Order {
   exams: string[];
   examDescriptions?: Record<string, string>;
   customExams?: Record<string, { id: string; name: string; category: string; categoryTitle?: string }>;
+  /**
+   * Qué imprimir cuando el pedido incluye exámenes con justificación médica.
+   * NULL en pedidos viejos = 'both' (comportamiento histórico).
+   */
+  printMode?: OrderPrintMode;
   createdBy: string;
   /** Token de verificación pública — se genera solo al crear el pedido. */
   token?: string;

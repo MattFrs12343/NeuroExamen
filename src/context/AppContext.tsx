@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import type { ViewType, User, Patient, Exam, Order, OrderStatus, Receta, MedicationLine, ClinicProfile, Encaminhamento, Atestado, FormulaLeite, Receituario, Laudo, LaudoClinicProfile, LaudoConclusaoOption } from '../types';
+import type { ViewType, User, Patient, Exam, Order, OrderStatus, OrderPrintMode, Receta, MedicationLine, ClinicProfile, Encaminhamento, Atestado, FormulaLeite, Receituario, Laudo, LaudoClinicProfile, LaudoConclusaoOption } from '../types';
 import type { EncProfileKey } from '../data/encaminhamentoProfiles';
 import { INITIAL_EXAMS } from '../data/seedData';
 import printCerebroImg from '../assets/print-neurocerebro.webp';
@@ -78,7 +78,7 @@ interface AppContextProps {
   selectedOrderForPrint: Order | null;
   setSelectedOrderForPrint: (order: Order | null) => void;
   orderPendingPrintSelection: Order | null;
-  confirmPrintSelection: (examIds: string[]) => void;
+  confirmPrintSelection: (examIds: string[], printMode?: OrderPrintMode) => Promise<void>;
   cancelPrintSelection: () => void;
   activeOrderForEdit: Order | null;
   setActiveOrderForEdit: (order: Order | null) => void;
@@ -202,7 +202,7 @@ interface AppContextProps {
   captureTarget: 'order' | 'receta' | 'encaminhamento' | 'receituario' | null;
   verificationQr: string | null;
   verificationToken: string | null;
-  triggerSignAndPrint: (kind: 'order' | 'receta' | 'encaminhamento' | 'receituario', record: Order | Receta | Encaminhamento | Receituario, opts?: { examIds?: string[] }) => Promise<void>;
+  triggerSignAndPrint: (kind: 'order' | 'receta' | 'encaminhamento' | 'receituario', record: Order | Receta | Encaminhamento | Receituario, opts?: { examIds?: string[]; printMode?: OrderPrintMode }) => Promise<void>;
   triggerDownloadPdf: (
     kind: 'order' | 'receta' | 'encaminhamento' | 'atestado' | 'formula-leite',
     record: Order | Receta | Encaminhamento | Atestado | FormulaLeite,
@@ -808,6 +808,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     exams: string[];
     examDescriptions?: Record<string, string>;
     customExams?: Record<string, { id: string; name: string; category: string; categoryTitle?: string }>;
+    printMode?: OrderPrintMode;
   }): Promise<Order> => {
     const res = await fetch(`${API}/orders`, {
       method: 'POST',
@@ -837,6 +838,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       examDescriptions: updated.examDescriptions || null,
       customExams: updated.customExams || null,
       patientPhone: updated.patientPhone || null,
+      printMode: updated.printMode || null,
     };
     const res = await fetch(`${API}/orders/${updated.id}`, {
       method: 'PUT',
@@ -1319,16 +1321,28 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setOrderPendingPrintSelection(order);
   };
 
-  const confirmPrintSelection = (examIds: string[]) => {
-    if (!orderPendingPrintSelection) return;
+  const confirmPrintSelection = async (examIds: string[], printMode?: OrderPrintMode) => {
+    const pending = orderPendingPrintSelection;
+    if (!pending) return;
+
+    const mode: OrderPrintMode = printMode ?? pending.printMode ?? 'both';
+
     setSelectedRecetaForPrint(null);
     setSelectedEncaminhamentoForPrint(null);
     setSelectedAtestadoForPrint(null);
     setSelectedFormulaLeiteForPrint(null);
     setSelectedReceituarioForPrint(null);
     setSelectedLaudoForPrint(null);
-    setSelectedOrderForPrint({ ...orderPendingPrintSelection, exams: examIds });
     setOrderPendingPrintSelection(null);
+
+    // Persistir la elección para que las próximas reimpresiones la respeten.
+    // No bloquea la impresión si falla: el PDF de esta vez ya la recibe.
+    if (mode !== (pending.printMode ?? 'both')) {
+      try { await updateOrder({ ...pending, printMode: mode }); }
+      catch { /* la impresión no depende de que se guarde el modo */ }
+    }
+
+    setSelectedOrderForPrint({ ...pending, exams: examIds, printMode: mode });
     setActivePrintTarget('order');
     printAfterRender();
   };
@@ -1401,7 +1415,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const triggerSignAndPrint = async (
     kind: 'order' | 'receta' | 'encaminhamento' | 'receituario',
     record: Order | Receta | Encaminhamento | Receituario,
-    opts?: { examIds?: string[] }
+    opts?: { examIds?: string[]; printMode?: OrderPrintMode }
   ): Promise<void> => {
     // Todo el cuerpo (no solo la parte de red/captura) va dentro de este
     // try/finally: signPrintBusy tiene que resetearse pase lo que pase, para
@@ -1420,7 +1434,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setSelectedEncaminhamentoForPrint(null);
         setSelectedReceituarioForPrint(null);
         const order = record as Order;
-        setSelectedOrderForPrint(opts?.examIds ? { ...order, exams: opts.examIds } : order);
+        setSelectedOrderForPrint({
+          ...order,
+          exams: opts?.examIds ?? order.exams,
+          printMode: opts?.printMode ?? order.printMode ?? 'both',
+        });
       } else if (kind === 'receta') {
         setSelectedOrderForPrint(null);
         setSelectedEncaminhamentoForPrint(null);
@@ -1479,6 +1497,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         // páginas capturadas de los demás exámenes — ver api/orders/signed-pdf.php.
         if (kind === 'order') {
           signQuery.examIds = (opts?.examIds ?? (record as Order).exams).join(',');
+          signQuery.printMode = opts?.printMode ?? (record as Order).printMode ?? 'both';
         }
         const signedBlob = await uploadAndSignPdf(apiKind, record.id, captured.blob, signQuery);
         await printPdfBlob(signedBlob);

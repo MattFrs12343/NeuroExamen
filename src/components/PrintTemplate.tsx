@@ -197,7 +197,7 @@ const PrintPage: React.FC<PrintPageProps> = ({ order, formattedDate, entry, isLa
               más abajo): lista los TÍTULOS de sus secciones (no el texto
               entero, que ya va en las hojas siguientes), para que quien lea
               solo esta hoja de pedido sepa qué trae adjunto. */}
-          {SPECIALIZED_EXAM_IDS.has(entry.id) && (() => {
+          {SPECIALIZED_EXAM_IDS.has(entry.id) && (order.printMode ?? 'both') !== 'order' && (() => {
             const sectionTitles = SPECIALIZED_EXAM_DOCS[entry.id].body
               .filter((b) => b.k === 'h')
               .map((b) => b.t);
@@ -310,6 +310,14 @@ export const PrintTemplate: React.FC = () => {
   })();
 
   const customExamsMap = (order.customExams as Record<string, { id: string; name: string; category: string; categoryTitle?: string }>) || {};
+  const requestedPrintMode = order.printMode ?? 'both';
+  // Un pedido sin exámenes especializados no tiene justificación médica: si
+  // quedó guardado un modo viejo ('justification' al quitar esos exámenes),
+  // se ignora y se imprime como siempre.
+  const hasSpecializedInOrder = order.exams.some(id => SPECIALIZED_EXAM_IDS.has(id));
+  const printMode = requestedPrintMode === 'justification' && !hasSpecializedInOrder
+    ? 'both'
+    : requestedPrintMode;
 
   // Un examen produce SIEMPRE su página genérica de siempre (checkbox +
   // nombre + observações de categoría — la "hoja de pedido" que va con el
@@ -317,6 +325,11 @@ export const PrintTemplate: React.FC = () => {
   // (SPECIALIZED_EXAM_IDS), su propio documento legal completo de varias
   // hojas (ver PrintSpecializedExamTemplate) justo después — pedido
   // explícito del médico: uno no reemplaza al otro, van juntos.
+  //
+  // `order.printMode` permite elegir qué sale de esos exámenes:
+  //   'justification' → solo el documento de justificación médica.
+  //   'order'         → solo la hoja genérica de pedido.
+  //   'both'          → ambos (comportamiento histórico).
   type RenderUnit =
     | { kind: 'generic'; examId: string; exam: Exam }
     | { kind: 'specialized'; examId: string };
@@ -336,6 +349,16 @@ export const PrintTemplate: React.FC = () => {
 
     if (!exam) return;
 
+    const isSpecialized = SPECIALIZED_EXAM_IDS.has(examId);
+
+    if (printMode === 'justification') {
+      // Solo justificaciones: los exámenes sin justificación no imprimen nada.
+      if (isSpecialized && captureTarget !== 'order') {
+        units.push({ kind: 'specialized', examId });
+      }
+      return;
+    }
+
     units.push({ kind: 'generic', examId, exam });
 
     // Durante "Guardar e firmar" (captureTarget === 'order') el documento
@@ -344,7 +367,7 @@ export const PrintTemplate: React.FC = () => {
     // api/orders/signed-pdf.php) y lo empalma después de la página genérica
     // capturada de este mismo examen. Para "Imprimir" nativo
     // (captureTarget === null) sí se renderiza acá, como siempre.
-    if (SPECIALIZED_EXAM_IDS.has(examId) && captureTarget !== 'order') {
+    if (isSpecialized && printMode === 'both' && captureTarget !== 'order') {
       units.push({ kind: 'specialized', examId });
     }
   });

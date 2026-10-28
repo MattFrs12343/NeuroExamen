@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
-import type { Exam, OrderStatus } from '../types';
+import type { Exam, OrderPrintMode, OrderStatus } from '../types';
 import {
   User, Search, Calendar, Hash, Check,
   ChevronDown, ChevronUp, ArrowLeft, X,
@@ -16,6 +16,8 @@ import { isRichTextEmpty } from '../lib/richText';
 import { ClinicProfileField } from '../components/ClinicProfileField';
 import { cn, findPatientsByExactName, getErrorMessage, hasIdentity } from '../lib/utils';
 import { EditPatientNameButton } from '../components/EditPatientNameButton';
+import { OrderPrintModeModal } from '../components/OrderPrintModeModal';
+import { SPECIALIZED_EXAM_IDS } from '../data/specializedExamDocs';
 import { findClinicProfile } from '../lib/clinic';
 
 interface CidEntry { codigo: string; descripcion: string; }
@@ -92,6 +94,8 @@ export const NewOrder: React.FC = () => {
   const [expanded,         setExpanded]         = useState<Record<string, boolean>>({ cat_eeg: true });
   const [legacyCustomExams, setLegacyCustomExams] = useState<Record<string, LegacyCustomExam>>({});
   const [newCustomExamName, setNewCustomExamName] = useState('');
+  const [printMode, setPrintMode] = useState<OrderPrintMode>('both');
+  const [modeModalAction, setModeModalAction] = useState<'print' | 'sign-print' | null>(null);
 
   // CID-10
   const [cidList,     setCidList]     = useState<CidEntry[]>([]);
@@ -143,6 +147,7 @@ export const NewOrder: React.FC = () => {
       setSelectedExams(activeOrderForEdit.exams);
       setExamDescriptions(activeOrderForEdit.examDescriptions || {});
       setOrderStatus(activeOrderForEdit.status);
+      setPrintMode(activeOrderForEdit.printMode ?? 'both');
       setLegacyCustomExams(activeOrderForEdit.customExams || {});
     } else {
       const now = new Date();
@@ -150,6 +155,7 @@ export const NewOrder: React.FC = () => {
       setOrderStatus('Concluido');
       setLegacyCustomExams({});
       setPatientPhone('');
+      setPrintMode('both');
     }
   }, [activeOrderForEdit, patients, getLastKnownPatientPhone]);
 
@@ -194,6 +200,7 @@ export const NewOrder: React.FC = () => {
   }, [exams, examQuery, t, selectedExams]);
 
   const selectedPatient  = patients.find(p => p.id === patientId);
+  const hasSpecializedSelected = selectedExams.some(id => SPECIALIZED_EXAM_IDS.has(id));
   const toggleExam       = (id: string) => setSelectedExams(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
   const toggleCat        = (id: string) => setExpanded(p => ({ ...p, [id]: !p[id] }));
 
@@ -215,10 +222,14 @@ export const NewOrder: React.FC = () => {
 
   const [signing, setSigning] = useState(false);
 
-  const handleSave = async (action: 'save' | 'print' | 'sign-print') => {
+  const handleSave = async (action: 'save' | 'print' | 'sign-print', modeOverride?: OrderPrintMode) => {
     if (!patQuery.trim())      { alert(t('new_order_validation_pat'));   return; }
     if (!orderDate)            { alert(t('new_order_validation_date'));  return; }
     if (!selectedExams.length) { alert(t('new_order_validation_exams')); return; }
+
+    const effectivePrintMode: OrderPrintMode = hasSpecializedSelected
+      ? (modeOverride ?? printMode)
+      : 'both';
 
     let fPid = patientId;
     if (!fPid) {
@@ -257,6 +268,7 @@ export const NewOrder: React.FC = () => {
       status: orderStatus, exams: selectedExams,
       examDescriptions: Object.keys(examDescriptions).length ? examDescriptions : undefined,
       customExams: Object.keys(customRecord).length ? customRecord : undefined,
+      printMode: effectivePrintMode,
     };
 
     try {
@@ -272,7 +284,7 @@ export const NewOrder: React.FC = () => {
       } else if (action === 'sign-print') {
         setSigning(true);
         try {
-          await triggerSignAndPrint('order', saved);
+          await triggerSignAndPrint('order', saved, { printMode: effectivePrintMode });
         } catch (e) {
           alert(t('sign_pdf_error', { message: getErrorMessage(e) }));
         } finally {
@@ -765,7 +777,10 @@ export const NewOrder: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => handleSave('sign-print')}
+              onClick={() => {
+                if (hasSpecializedSelected) setModeModalAction('sign-print');
+                else handleSave('sign-print');
+              }}
               disabled={signing}
               className="flex items-center justify-center gap-2 w-full h-11 rounded-xl bg-[#0F4C81] hover:bg-[#0a3a63] text-white text-sm font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-50"
             >
@@ -782,6 +797,19 @@ export const NewOrder: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {modeModalAction && (
+        <OrderPrintModeModal
+          initialMode={printMode}
+          onClose={() => setModeModalAction(null)}
+          onConfirm={(mode) => {
+            const action = modeModalAction;
+            setPrintMode(mode);
+            setModeModalAction(null);
+            void handleSave(action, mode);
+          }}
+        />
+      )}
     </div>
   );
 };

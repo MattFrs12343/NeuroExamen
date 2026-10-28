@@ -30,6 +30,7 @@ export const INITIAL_EXAMS: Exam[] = [
   // ── Dinamómetro ───────────────────────────────────────────────────────────
   { id: 'din-01', category: 'cat_din', name: 'exam_din_01' },
   { id: 'din-02', category: 'cat_din', name: 'exam_din_02' },
+  { id: 'din-03', category: 'cat_din', name: 'exam_din_03' },
 
   // ── Imágenes por resonancia magnética computarizada ───────────────────────
   { id: 'rm-01', category: 'cat_rm', name: 'exam_rm_01' },
@@ -50,6 +51,7 @@ export const INITIAL_EXAMS: Exam[] = [
   // ── Estesiometro ──────────────────────────────────────────────────────────
   { id: 'est-01', category: 'cat_est', name: 'exam_est_01' },
   { id: 'est-02', category: 'cat_est', name: 'exam_est_02' },
+  { id: 'est-03', category: 'cat_est', name: 'exam_est_03' },
 
   // ── Equilíbrio ────────────────────────────────────────────────────────────
   { id: 'equ-01', category: 'cat_equ', name: 'exam_equ_01' },

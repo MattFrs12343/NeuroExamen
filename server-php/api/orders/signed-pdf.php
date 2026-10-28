@@ -77,10 +77,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $specializedIds = specializedExamDocIds();
     $hasSpecialized = $examIds && array_intersect($examIds, $specializedIds);
 
-    // Sin lista de exámenes (llamador viejo) o sin ninguno especializado en
-    // este pedido: camino de siempre — todas las páginas capturadas se
-    // importan tal cual (ver signUploadedPdf() en lib/signing.php).
-    if (!$examIds || !$hasSpecialized) {
+    // Qué documentos salen cuando el pedido tiene justificaciones médicas:
+    //   'justification' → solo el documento especial (generado con TCPDF).
+    //   'order'         → solo las hojas de pedido capturadas por el navegador.
+    //   'both'          → ambas, intercaladas (comportamiento histórico).
+    // El navegador lo manda explícito; si no viene, se usa lo guardado en el
+    // pedido. Cualquier valor desconocido cae en 'both'.
+    $printMode = $_GET['printMode'] ?? $o['print_mode'] ?? 'both';
+    if (!in_array($printMode, ['justification', 'order', 'both'], true)) {
+        $printMode = 'both';
+    }
+
+    // Sin lista de exámenes (llamador viejo), sin ningún especializado en
+    // este pedido, o en modo "solo pedido": camino de siempre — todas las
+    // páginas capturadas se importan tal cual (ver signUploadedPdf()).
+    if (!$examIds || !$hasSpecialized || $printMode === 'order') {
         signUploadedPdf('pedido_' . $orderId . '_assinado.pdf', DOCTOR_NAME, true, $contentHeightsMm, true, 35.0, null, 7.0, 'right', 'orders', $orderId);
         exit;
     }
@@ -90,6 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // captura — ver captureTarget==='order' en ese componente) y se generan
     // acá de cero con TCPDF, intercalados en el orden original con las
     // páginas capturadas de los demás exámenes (mismo formato que Laudos).
+    // En 'justification' no se importa ninguna página capturada.
     $bytes = file_get_contents('php://input');
     if (!$bytes) {
         header('Content-Type: application/json');
@@ -131,28 +143,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $capturedPageIdx = 0; // próxima página SIN USAR del PDF capturado (una por examen, SIEMPRE, incluidos los especializados)
 
     foreach ($examIds as $examId) {
-        // La hoja de pedido genérica SIEMPRE sale — el médico pidió
+        // La hoja de pedido genérica sale en 'both' (el médico pidió
         // explícitamente que no se reemplace, sino que el documento
-        // especializado se agregue A CONTINUACIÓN de ella.
-        $capturedPageIdx++;
-        if ($capturedPageIdx <= $pageCount) {
-            $templateId = $pdf->importPage($capturedPageIdx);
-            $size = $pdf->getTemplateSize($templateId);
-            $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
-            $pdf->useTemplate($templateId);
+        // especializado se agregue A CONTINUACIÓN de ella). En
+        // 'justification' se omite a propósito.
+        if ($printMode !== 'justification') {
+            $capturedPageIdx++;
+            if ($capturedPageIdx <= $pageCount) {
+                $templateId = $pdf->importPage($capturedPageIdx);
+                $size = $pdf->getTemplateSize($templateId);
+                $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                $pdf->useTemplate($templateId);
 
-            $contentH = $contentHeightsMm[$capturedPageIdx - 1] ?? null;
-            $footerFromBottomMm = 35.0;
-            $fixedFooterY = $size['height'] - $footerFromBottomMm;
-            $footerY = ($contentH !== null && $contentH + 2 > $fixedFooterY)
-                ? min($contentH + 2, $size['height'] - 25)
-                : $fixedFooterY;
+                $contentH = $contentHeightsMm[$capturedPageIdx - 1] ?? null;
+                $footerFromBottomMm = 35.0;
+                $fixedFooterY = $size['height'] - $footerFromBottomMm;
+                $footerY = ($contentH !== null && $contentH + 2 > $fixedFooterY)
+                    ? min($contentH + 2, $size['height'] - 25)
+                    : $fixedFooterY;
 
-            $pdf->SetAutoPageBreak(false);
-            $pdf->SetXY(0, $footerY);
-            $pdf->SetLeftMargin(18);
-            $pdf->SetRightMargin(18);
-            drawSignatureFooter($pdf, $sig['name'], $sig['document'], $sig['documentLabel'], 7.0);
+                $pdf->SetAutoPageBreak(false);
+                $pdf->SetXY(0, $footerY);
+                $pdf->SetLeftMargin(18);
+                $pdf->SetRightMargin(18);
+                drawSignatureFooter($pdf, $sig['name'], $sig['document'], $sig['documentLabel'], 7.0);
+            }
         }
 
         if (in_array($examId, $specializedIds, true)) {

@@ -37,11 +37,21 @@ function formatOrder(array $row, array $examIds, ?array $examDescriptions, ?arra
         'exams'            => $examIds,
         'examDescriptions' => $examDescriptions ?: null,
         'customExams'      => $customExams      ?: null,
+        'printMode'        => $row['print_mode']    ?: null,
         'createdBy'        => $row['user_name'],
         'token'            => $row['token']          ?: null,
         'accessCode'       => $row['access_code']    ?: null,
         'validationUrl'    => $row['validation_url'] ?: null,
     ];
+}
+
+/**
+ * Valida el modo de impresión de un pedido con justificación médica.
+ * Cualquier valor ausente/desconocido queda en NULL (que el frontend y el
+ * PDF firmado interpretan como 'both', el comportamiento histórico).
+ */
+function normalizePrintMode($value): ?string {
+    return in_array($value, ['justification', 'order', 'both'], true) ? $value : null;
 }
 
 // Helper: fetch exam ids for an order
@@ -111,7 +121,7 @@ if ($method === 'GET' && !$orderId) {
             o.id, o.patient_id, o.user_id, o.date, o.code_cid, o.patient_phone, o.clinic_name,
             o.clinic_secretaria, o.clinic_sistema, o.clinic_address, o.clinic_phone, o.clinic_cnpj,
             o.token, o.access_code, o.validation_url,
-            o.observations, o.status, o.custom_exams, o.exam_descriptions, o.created_at,
+            o.observations, o.status, o.custom_exams, o.exam_descriptions, o.print_mode, o.created_at,
             p.name AS patient_name, p.identity_card AS patient_identity_card,
             u.name AS user_name
         FROM orders o
@@ -157,6 +167,7 @@ if ($method === 'POST') {
     $examIds         = $body['exams']           ?? [];
     $examDescriptions = $body['examDescriptions'] ?? null;
     $customExams     = $body['customExams']      ?? null;
+    $printMode       = normalizePrintMode($body['printMode'] ?? null);
 
     if (!$patientId || !$date || empty($examIds)) {
         http_response_code(400);
@@ -179,8 +190,8 @@ if ($method === 'POST') {
             'INSERT INTO orders (
                 id, patient_id, user_id, date, code_cid, patient_phone, clinic_name,
                 clinic_secretaria, clinic_sistema, clinic_address, clinic_phone, clinic_cnpj,
-                observations, status, exam_descriptions, custom_exams
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                observations, status, exam_descriptions, custom_exams, print_mode
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $newId, $patientId, $userId, $date, $codeCID, $patientPhone,
@@ -188,6 +199,7 @@ if ($method === 'POST') {
             $observations, $status,
             $examDescriptions ? json_encode($examDescriptions) : null,
             $customExams      ? json_encode($customExams)      : null,
+            $printMode,
         ]);
 
         $pivot = $pdo->prepare('INSERT INTO order_exams (order_id, exam_id) VALUES (?, ?)');
@@ -242,6 +254,7 @@ if ($method === 'PUT' && $orderId) {
     $examIds         = $body['exams']           ?? [];
     $examDescriptions = $body['examDescriptions'] ?? null;
     $customExams     = $body['customExams']      ?? null;
+    $printMode       = normalizePrintMode($body['printMode'] ?? null);
 
     if (empty($examIds)) {
         http_response_code(400);
@@ -261,7 +274,7 @@ if ($method === 'PUT' && $orderId) {
             'UPDATE orders SET
                 date=?, code_cid=?, patient_phone=?, clinic_name=?,
                 clinic_secretaria=?, clinic_sistema=?, clinic_address=?, clinic_phone=?, clinic_cnpj=?,
-                observations=?, status=?, exam_descriptions=?, custom_exams=?
+                observations=?, status=?, exam_descriptions=?, custom_exams=?, print_mode=COALESCE(?, print_mode)
              WHERE id=?'
         );
         $upd->execute([
@@ -270,6 +283,7 @@ if ($method === 'PUT' && $orderId) {
             $observations, $status,
             $examDescriptions ? json_encode($examDescriptions) : null,
             $customExams      ? json_encode($customExams)      : null,
+            $printMode,
             $orderId,
         ]);
 

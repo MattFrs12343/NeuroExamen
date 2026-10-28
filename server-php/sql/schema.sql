@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS orders (
   status            VARCHAR(30)  NOT NULL DEFAULT 'Pendiente',
   custom_exams      JSON         NULL,
   exam_descriptions JSON         NULL,
+  print_mode        VARCHAR(20)  NULL,
   created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_orders_patient FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
   CONSTRAINT fk_orders_user    FOREIGN KEY (user_id)    REFERENCES users(id)
